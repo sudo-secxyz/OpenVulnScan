@@ -1,0 +1,8 @@
+fastapi==0.101.1
+uvicorn==0.23.2
+pydantic==2.1.1
+Jinja2==3.1.2
+fpdf==1.7.2
+requests==2.31.0
+python-nmap
+python-multipart==0.0.6

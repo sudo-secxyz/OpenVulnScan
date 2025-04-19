@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OpenVulnScan</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        .scan-form {
+            background: #f7f7f7;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+        }
+        .scan-form input[type="text"] {
+            width: 60%;
+            padding: 8px;
+            margin-right: 10px;
+        }
+        .scan-form button {
+            padding: 8px 16px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .scan-form button:hover {
+            background: #2980b9;
+        }
+        .scan-list {
+            list-style: none;
+            padding: 0;
+        }
+        .scan-item {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        .scan-item:hover {
+            background: #f9f9f9;
+        }
+        .scan-link {
+            text-decoration: none;
+            color: #3498db;
+            font-weight: bold;
+        }
+        .scan-info {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>OpenVulnScan</h1>
+        
+        <div class="scan-form">
+            <h2>Start New Scan</h2>
+            <form id="scanForm">
+                <input type="text" id="targets" placeholder="Enter IP addresses or hostnames (comma separated)" required>
+                <button type="submit">Start Scan</button>
+            </form>
+        </div>
+        
+        <h2>Scan History</h2>
+        <ul class="scan-list">
+            {% for scan in scans %}
+            <li class="scan-item">
+                <a href="/scan/{{ scan[0] }}" class="scan-link">Scan {{ scan[0][:8] }}...</a>
+                <div class="scan-info">
+                    Started: {{ scan[1] }} 
+                    {% if scan[2] %}
+                    | Completed: {{ scan[2] }}
+                    {% else %}
+                    | <span style="color: #e74c3c;">In progress</span>
+                    {% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <script>
+        document.getElementById('scanForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const targetsInput = document.getElementById('targets').value;
+            const targets = targetsInput.split(',').map(t => t.trim()).filter(t => t);
+            
+            if (targets.length === 0) {
+                alert('Please enter at least one target');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/scan', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ targets })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    window.location.href = `/scan/${result.id}`;
+                } else {
+                    alert('Error starting scan');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error starting scan');
+            }
+        });
+    </script>
+</body>
+</html>

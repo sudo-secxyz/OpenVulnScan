@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Scan Results</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Scan Results</h1>
+    <h2>Scan ID: {{ scan_id }}</h2>
+    <p><strong>Started at:</strong> {{ started_at }}</p>
+    <p><strong>Completed at:</strong> {{ completed_at or 'In progress' }}</p>
+    
+    <h3>Targets:</h3>
+    <ul>
+        {% for target in targets %}
+        <li>{{ target }}</li>
+        {% endfor %}
+    </ul>
+    
+    <h3>Findings:</h3>
+    {% if findings %}
+    <ul>
+        {% for finding in findings %}
+        <li>{{ finding }}</li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>No findings recorded yet.</p>
+    {% endif %}
+    
+    <p><a href="/scan/{{ scan_id }}/pdf">Download PDF Report</a></p>
+    <p><a href="/">Back to Scan History</a></p>
+</body>
+</html>

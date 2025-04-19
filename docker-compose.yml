@@ -1,0 +1,14 @@
+#version: "3.9"
+services:
+  vulnmgmt:
+    build: .
+    container_name: openvulnscan
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./templates:/app/templates
+      - ./static:/app/static
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
