@@ -94,6 +94,4 @@ curl -X POST http://localhost:8000/agent/report \
 ## License
 
 MIT
-```
 
-Let me know if you’d like badge icons, screenshots, or a demo GIF added to the README too.
