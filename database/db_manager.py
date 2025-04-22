@@ -4,11 +4,51 @@ import json
 import datetime
 from config import DB_PATH
 
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+# You can adjust your DB URL here
+SQLALCHEMY_DATABASE_URL = "sqlite:///./openvulnscan.db"
+
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+)
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+Base = declarative_base()
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+        
+
 def get_db_connection():
     """Get a database connection"""
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
+
+def initialize_agent_reports_table():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS agent_reports (
+        id TEXT PRIMARY KEY,
+        hostname TEXT,
+        os TEXT,
+        packages TEXT,
+        reported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    conn.commit()
+    conn.close()
+
+initialize_agent_reports_table()
 
 def init_db():
     """Initialize the database with required tables"""
@@ -75,13 +115,31 @@ def get_scan(scan_id):
     }
 
 def get_all_scans():
-    """Get all scans ordered by start date"""
+    """Get all scans ordered by start date as a list of dictionaries"""
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute('SELECT id, started_at, completed_at FROM scans ORDER BY started_at DESC')
+
+    # Modify the SQL query to select the 'targets' column as well
+    cur.execute('SELECT id, targets, started_at, completed_at FROM scans ORDER BY started_at DESC')
+    
     scans = cur.fetchall()
     conn.close()
-    return scans
+
+    # Convert list of tuples into list of dictionaries
+    scans_dict = []
+    for scan in scans:
+        try:
+            # Convert the row into a dictionary, ensuring that 'targets' is parsed as JSON
+            scans_dict.append({
+                "scan_id": scan["id"],
+                "scan_targets": json.loads(scan["targets"]),  # Deserialize the 'targets' JSON
+                "started_at": scan["started_at"],
+                "completed_at": scan["completed_at"]
+            })
+        except Exception as e:
+            print(f"Error processing scan {scan['id']}: {e}")
+    
+    return scans_dict
 def debug_scan_findings(scan_id):
     """Debug function to print scan findings"""
     conn = get_db_connection()
@@ -93,6 +151,25 @@ def debug_scan_findings(scan_id):
         print(f"DEBUG findings from DB: {findings['findings']}")
         return json.loads(findings['findings'])
     return None
+
+def save_agent_report(hostname, packages):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS agent_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            hostname TEXT,
+            packages TEXT,
+            reported_at TEXT
+        )
+    ''')
+    cur.execute('''
+        INSERT INTO agent_reports (hostname, packages, reported_at)
+        VALUES (?, ?, ?)
+    ''', (hostname, json.dumps(packages), datetime.datetime.utcnow().isoformat()))
+    conn.commit()
+    conn.close()
+
 
 # Initialize database on import
 init_db()

@@ -1,1 +1,1 @@
-# Empty init file to make the directory a package
+from .db_manager import Base, engine, SessionLocal

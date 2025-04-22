@@ -6,3 +6,10 @@ fpdf==1.7.2
 requests==2.31.0
 python-nmap
 python-multipart==0.0.6
+authlib
+python-dotenv
+sqlalchemy
+aiosqlite
+httpx
+passlib
+itsdangerous

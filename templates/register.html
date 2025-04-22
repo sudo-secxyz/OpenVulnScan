@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+
+<form method="post" action="/register">
+    <h2>Register</h2>
+    <input type="email" name="email" placeholder="Email" required>
+    <input type="password" name="password" placeholder="Password" required>
+    <button type="submit">Register</button>
+    {% if error %}<p style="color:red;">{{ error }}</p>{% endif %}
+    <p><a href="/login">Log In</a></p>
+</form>
+{% endblock %}

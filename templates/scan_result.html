@@ -1,12 +1,5 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Scan Results</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; }
-    </style>
-</head>
+{% extends "base.html" %}
+{% block content %}
 <body>
     <h1>Scan Results</h1>
     <h2>Scan ID: {{ scan_id }}</h2>
@@ -34,4 +27,4 @@
     <p><a href="/scan/{{ scan_id }}/pdf">Download PDF Report</a></p>
     <p><a href="/">Back to Scan History</a></p>
 </body>
-</html>
+    {% endblock %}

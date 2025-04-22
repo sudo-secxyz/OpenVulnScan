@@ -1,7 +1,6 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>OpenVulnScan</title>
+{% extends "base.html" %}
+{% block content %}
+<title>OpenVulnScan</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -60,7 +59,6 @@
             font-size: 0.9em;
         }
     </style>
-</head>
 <body>
     <div class="container">
         <h1>OpenVulnScan</h1>
@@ -77,11 +75,12 @@
         <ul class="scan-list">
             {% for scan in scans %}
             <li class="scan-item">
-                <a href="/scan/{{ scan[0] }}" class="scan-link">Scan {{ scan[0][:8] }}...</a>
+                <a href="/scan/{{ scan['scan_id'] }}" class="scan-link">Scan {{ scan['scan_id'][:8] }}...</a>
                 <div class="scan-info">
-                    Started: {{ scan[1] }} 
-                    {% if scan[2] %}
-                    | Completed: {{ scan[2] }}
+                    Target(s): {{ scan.targets | join(', ') }}<br>
+                    Started: {{ scan.started_at }}
+                    {% if scan.completed_at %}
+                    | Completed: {{ scan.completed_at }}
                     {% else %}
                     | <span style="color: #e74c3c;">In progress</span>
                     {% endif %}
@@ -124,5 +123,4 @@
             }
         });
     </script>
-</body>
-</html>
+{% endblock %}
