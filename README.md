@@ -1,8 +1,4 @@
-Here's an updated `README.md` with the new endpoints, agent instructions, and `curl` usage:
 
----
-
-```markdown
 # OpenVulnScan
 
 A simple vulnerability scanning application built with FastAPI.
