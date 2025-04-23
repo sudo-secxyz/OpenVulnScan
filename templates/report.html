@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<head>
+    <meta charset="UTF-8">
+    <title>Agent Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; }
+        .package { margin-bottom: 20px; }
+        .cve { margin-left: 20px; font-size: 0.9em; color: #555; }
+    </style>
+</head>
+<body>
+    <h1>Agent Report for {{ hostname }}</h1>
+    <p><strong>OS:</strong> {{ os }}</p>
+    <p><strong>Reported At:</strong> {{ reported_at }}</p>
+
+    <h2>Packages</h2>
+    {% for pkg in packages %}
+        <div class="package">
+            <h3>{{ pkg.package_name }} - {{ pkg.version }}</h3>
+            {% if pkg.cves %}
+                <ul>
+                    {% for cve in pkg.cves %}
+                        <li class="cve">
+                            <strong>{{ cve.cve_id }}</strong>: {{ cve.summary }} <em>(Severity: {{ cve.severity }})</em>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="cve">No CVEs found for this package.</p>
+            {% endif %}
+        </div>
+    {% endfor %}
+</body>
+{% endblock %}

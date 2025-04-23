@@ -8,7 +8,7 @@ from auth.dependencies import require_authentication
 from fastapi import Depends
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, select
 from database.db_manager import get_db
 from models.agent_report import AgentReport, Package, CVE
 
@@ -101,23 +101,37 @@ async def check_package_cves(
     except Exception as e:
         return {"status": "error", "message": str(e)}
     
-@router.get("/dashboard", dependencies=[Depends(require_authentication)])
+@router.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(require_authentication)])
 def dashboard(request: Request, db: Session = Depends(get_db)):
-    report_count = db.query(AgentReport).count()
-    package_count = db.query(Package).count()
-    cve_count = db.query(CVE).count()
+    report_count = db.scalar(select(func.count()).select_from(AgentReport))
+    package_count = db.scalar(select(func.count()).select_from(Package))
+    cve_count = db.scalar(select(func.count()).select_from(CVE))
 
-    top_packages = db.query(
-        Package.name,
-        func.count(CVE.id).label("cve_count")
-    ).join(CVE).group_by(Package.name).order_by(desc("cve_count")).limit(5).all()
+    # Top vulnerable packages by CVE count
+    top_packages_query = (
+        select(Package.name, func.count(CVE.id).label("cve_count"))
+        .join(CVE, CVE.package_id == Package.id)
+        .group_by(Package.name)
+        .order_by(func.count(CVE.id).desc())
+        .limit(5)
+    )
+    top_packages = db.execute(top_packages_query).all()
+
+    # Distinct agents with latest report
+    latest_reports_query = (
+        select(AgentReport.hostname, AgentReport.id.label("latest_report_id"), AgentReport.reported_at)
+        .distinct(AgentReport.hostname)
+        .order_by(AgentReport.hostname, AgentReport.reported_at.desc())
+    )
+    agents = db.execute(latest_reports_query).all()
 
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "report_count": report_count,
         "package_count": package_count,
         "cve_count": cve_count,
-        "top_packages": top_packages
+        "top_packages": top_packages,
+        "agents": agents
     })
 
     

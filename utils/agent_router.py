@@ -8,6 +8,9 @@ from database.db_manager import get_db
 from models.agent_report import AgentReport, Package, CVE
 from utils import cve_checker
 
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
+
 router = APIRouter()
 
 @router.post("/agent/report", status_code=201, dependencies=[Depends(require_authentication)], tags=["agent"])
@@ -52,8 +55,10 @@ def submit_agent_report(request: Request, payload: dict, db: Session = Depends(g
     return {"detail": "Agent report submitted successfully", "report_id": report.id}
 
 
-@router.get("/agent/report/{report_id}", dependencies=[Depends(require_authentication)], tags=["agent"])
-def get_agent_report(report_id: str, db: Session = Depends(get_db)):
+templates = Jinja2Templates(directory="templates")
+
+@router.get("/agent/report/{report_id}", response_class=HTMLResponse, dependencies=[Depends(require_authentication)], tags=["agent"])
+def get_agent_report(request: Request, report_id: str, db: Session = Depends(get_db)):
     report = db.get(AgentReport, report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Agent report not found")
@@ -69,14 +74,14 @@ def get_agent_report(report_id: str, db: Session = Depends(get_db)):
             "cves": [{"cve_id": cve.cve_id, "summary": cve.summary, "severity": cve.severity} for cve in cves]
         })
 
-    return {
+    return templates.TemplateResponse("report.html", {
+        "request": request,
         "report_id": report.id,
         "hostname": report.hostname,
         "os": report.os_info,
         "reported_at": report.reported_at,
         "packages": package_data
-    }
-
+    })
 
 @router.get("/agent/reports", dependencies=[Depends(require_authentication)], tags=["agent"])
 def list_agent_reports(db: Session = Depends(get_db)):

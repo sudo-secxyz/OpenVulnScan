@@ -14,4 +14,18 @@
     <li>{{ pkg.name }} — {{ pkg.cve_count }} CVEs</li>
   {% endfor %}
 </ul>
+<h3 class="text-lg font-semibold mt-6 mb-2">Agents</h3>
+<ul>
+  {% for agent in agents %}
+    <li>
+      <a href="/agent/report/{{ agent.latest_report_id }}" class="text-blue-600 underline">
+        {{ agent.hostname }}
+      </a>
+      — Last reported at {{ agent.reported_at }}
+    </li>
+  {% else %}
+    <li>No agents found.</li>
+  {% endfor %}
+</ul>
+
 {% endblock %}
