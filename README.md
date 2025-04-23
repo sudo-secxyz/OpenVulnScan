@@ -90,7 +90,4 @@ curl -X POST http://localhost:8000/agent/report \
 ## License
 
 MIT
-<<<<<<< HEAD
 
-=======
->>>>>>> 70545aa (updated routes, added cve check for packages, updated settings)
