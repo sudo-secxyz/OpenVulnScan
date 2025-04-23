@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2 class="text-xl font-bold mb-4">Dashboard Overview</h2>
+<ul class="mb-4">
+  <li><strong>Agent Reports:</strong> {{ report_count }}</li>
+  <li><strong>Total Packages:</strong> {{ package_count }}</li>
+  <li><strong>Total CVEs:</strong> {{ cve_count }}</li>
+</ul>
+
+<h3 class="text-lg font-semibold mt-6 mb-2">Top Vulnerable Packages</h3>
+<ul>
+  {% for pkg in top_packages %}
+    <li>{{ pkg.name }} — {{ pkg.cve_count }} CVEs</li>
+  {% endfor %}
+</ul>
+{% endblock %}

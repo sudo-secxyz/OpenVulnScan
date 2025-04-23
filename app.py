@@ -8,7 +8,8 @@ import os
 import json
 from database.base import Base
 from models.schemas import ScanRequest, ScanResult
-from database.db_manager import  engine, get_all_scans, save_agent_report, get_db_connection, SessionLocal, get_db
+from database.db_manager import  engine, get_all_scans, save_agent_report, SessionLocal, get_db
+from database.db_manager import get_scan as gs
 from models.users import User
 from services.scan_service import start_scan_task, get_scan_details
 from utils.report_generator import generate_scan_report
@@ -96,20 +97,20 @@ def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "scans": scans})
 
 @protected_router.post("/scan", response_model=ScanResult, tags=['scan'])
-def start_scan(req: ScanRequest, background_tasks: BackgroundTasks):
+def start_scan(req: ScanRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     logger.info(f"Starting new scan for targets: {req.targets}")
     result = start_scan_task(req, background_tasks)
     logger.info(f"Scan initiated with ID: {result.id}")
     return result
 
-@protected_router.get("/scan/{scan_id}", response_class=HTMLResponse,tags=['scan'])
-def get_scan(scan_id: str, request: Request):
+@protected_router.get("/scan/{scan_id}", response_class=HTMLResponse, tags=['scan'])
+def get_scan(scan_id: str, request: Request, db: Session = Depends(get_db)):
     logger.info(f"Viewing scan results for scan ID: {scan_id}")
-    scan_data = get_scan_details(scan_id)
+    scan_data = gs(scan_id, db=db)
     if not scan_data:
         return HTMLResponse(f"<h1>Scan ID {scan_id} not found</h1>", status_code=404)
     return templates.TemplateResponse("scan_result.html", {
-        "request": request,
+        "request": request, 
         "scan_id": scan_id,
         **scan_data
     })

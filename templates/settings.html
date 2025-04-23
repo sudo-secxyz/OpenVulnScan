@@ -3,6 +3,12 @@
 {% block title %}Settings - OpenVulnScan{% endblock %}
 
 {% block content %}
+{% if error %}
+  <p class="text-red-600 font-bold">{{ error }}</p>
+{% endif %}
+{% if success %}
+  <p class="text-green-600 font-bold">{{ success }}</p>
+{% endif %}
 <div class="container mt-5">
     <h2 class="mb-4">Settings</h2>
 
@@ -14,4 +20,23 @@
         <button type="submit" class="btn btn-primary">Update Settings</button>
     </form>
 </div>
+<h2 class="text-xl font-bold mt-6">Change Password</h2>
+<form method="POST" action="/settings/change-password" class="mt-2 space-y-4">
+  <div>
+    <label for="current_password" class="block">Current Password</label>
+    <input type="password" id="current_password" name="current_password" required class="border p-2 w-full">
+  </div>
+  <div>
+    <label for="new_password" class="block">New Password</label>
+    <input type="password" id="new_password" name="new_password" required class="border p-2 w-full">
+  </div>
+  <div>
+    <label for="confirm_password" class="block">Confirm New Password</label>
+    <input type="password" id="confirm_password" name="confirm_password" required class="border p-2 w-full">
+  </div>
+  <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded">
+    Change Password
+  </button>
+</form>
+
 {% endblock %}
