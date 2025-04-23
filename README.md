@@ -14,6 +14,11 @@ A simple vulnerability scanning application built with FastAPI.
    ```bash
    uvicorn app:app --reload
    ```
+   OR
+   if running via docker:
+   ```bash
+   docker compose up
+   ```
 
 3. Access the web interface:
    [http://localhost:8000](http://localhost:8000)
