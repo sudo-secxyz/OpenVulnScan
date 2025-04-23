@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - OpenVulnScan{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="mb-4">Settings</h2>
+
+    <form method="post" action="/settings/update">
+        <div class="mb-3">
+            <label for="cve_api_url" class="form-label">CVE API URL</label>
+            <input type="url" class="form-control" id="cve_api_url" name="cve_api_url" placeholder="https://api.osv.dev/v1/query" value="{{ current_url }}">
+        </div>
+        <button type="submit" class="btn btn-primary">Update Settings</button>
+    </form>
+</div>
+{% endblock %}

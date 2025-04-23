@@ -1,23 +1,29 @@
+# app.py
 from fastapi import FastAPI, BackgroundTasks, Depends, HTTPException, Request, Header, status, APIRouter
 from fastapi.responses import HTMLResponse, FileResponse, Response, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.orm import Session
 import os
 import json
-
+from database.base import Base
 from models.schemas import ScanRequest, ScanResult
-from database.db_manager import Base, engine, get_all_scans, save_agent_report, get_db_connection, SessionLocal
+from database.db_manager import  engine, get_all_scans, save_agent_report, get_db_connection, SessionLocal, get_db
 from models.users import User
 from services.scan_service import start_scan_task, get_scan_details
 from utils.report_generator import generate_scan_report
 from config import TEMPLATES_DIR, STATIC_DIR, initialize_directories, setup_logging
 from passlib.hash import bcrypt
-
+from utils.settings import router as settings_router
 # Auth Routers
 from auth.google import router as google_auth
 from auth.local import router as local_auth
+from auth.dependencies import require_authentication
+
+
+from models.agent_report import AgentReport, Package  # Adjust as needed
+from fastapi.responses import JSONResponse
+from utils.agent_router import router as AgentRouter
 
 # Logger setup
 logger = setup_logging()
@@ -26,22 +32,45 @@ app = FastAPI(title="OpenVulnScan", version="0.1.0")
 
 # Initialize directories and DB
 initialize_directories()
-Base.metadata.create_all(bind=engine)
+
+    
 
 # Static and templates
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 # Middleware
-app.add_middleware(SessionMiddleware, secret_key="super-secret-key") # change in Prod
+from fastapi import FastAPI, Request
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.authentication import AuthenticationMiddleware
+
+from starlette.authentication import (
+    AuthenticationBackend, AuthCredentials, SimpleUser, UnauthenticatedUser
+)
+
+# Example dummy backend – replace with your real auth logic
+class BasicAuthBackend(AuthenticationBackend):
+    async def authenticate(self, conn):
+        user = conn.session.get("user")
+        if user:
+            return AuthCredentials(["authenticated"]), SimpleUser(user)
+        return AuthCredentials([]), UnauthenticatedUser()
+app.add_middleware(AuthenticationMiddleware, backend=BasicAuthBackend())
+app.add_middleware(SessionMiddleware, secret_key="super-secret-key",) # change in Prod
 
 # Public routes (no login required)
 app.include_router(google_auth)
 app.include_router(local_auth)
-
+app.include_router(settings_router)
+app.include_router(AgentRouter)
 # Create default admin
 @app.on_event("startup")
 def create_default_admin():
+    # Automatically create all tables on app startup
+    Base.metadata.create_all(bind=engine)
+    from sqlalchemy import inspect
+    inspector = inspect(engine)
+    print("Existing tables:", inspector.get_table_names())
     db: Session = SessionLocal()
     admin_email = "admin@openvulnscan.local"
     default_password = "admin123"  # Change this in production
@@ -56,12 +85,6 @@ def create_default_admin():
         print("Admin user already exists.")
     db.close()
 
-# Authentication dependency
-def require_authentication(request: Request):
-    user = request.session.get("user")
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-    return user
 
 # Protected router
 protected_router = APIRouter(dependencies=[Depends(require_authentication)])
@@ -99,24 +122,33 @@ def get_scan_pdf(scan_id: str):
         raise HTTPException(status_code=404, detail="PDF report not found")
     return FileResponse(pdf_file_path, filename=f"scan_{scan_id}_report.pdf", media_type="application/pdf")
 
-@protected_router.get("/agent/reports", response_class=HTMLResponse, tags=["agent","report"])
-def view_agent_reports(request: Request):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM agent_reports ORDER BY reported_at DESC")
-    rows = cur.fetchall()
-    conn.close()
+@protected_router.get("/api/report/{agent_id}", tags=["agent","report"])
+def get_agent_report(agent_id: int, db: Session = Depends(get_db)):
+    report = db.query(AgentReport).filter(AgentReport.id == agent_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
 
-    reports = [
-        {
-            "id": row["id"],
-            "hostname": row["hostname"],
-            "packages": json.loads(row["packages"]),
-            "reported_at": row["reported_at"]
-        }
-        for row in rows
-    ]
-    return templates.TemplateResponse("agent_reports.html", {"request": request, "reports": reports})
+    result = {
+        "hostname": report.hostname,
+        "timestamp": str(report.timestamp),
+        "packages": []
+    }
+
+    for pkg in report.packages:
+        result["packages"].append({
+            "name": pkg.name,
+            "version": pkg.version,
+            "cves": [
+                {
+                    "id": cve.cve_id,
+                    "summary": cve.summary
+                } for cve in pkg.cves  # Assuming a relationship exists
+            ]
+        })
+
+    return JSONResponse(content=result)
+
+
 
 # Public route to serve agent script
 @app.get("/agent/download", response_class=Response, tags=["agent"])
@@ -164,22 +196,7 @@ if __name__ == "__main__":
 '''
     return Response(content=agent_code, media_type="text/x-python")
 
-# Public route to receive agent report
-@app.post("/agent/report", tags=["agent"])
-async def receive_agent_report(request: Request, authorization: str = Header(None)):
-    # Optional auth check
-    # if authorization != "Bearer your-pre-shared-api-key":
-    #     return JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content={"detail": "Unauthorized"})
 
-    data = await request.json()
-    hostname = data.get("hostname")
-    packages = data.get("packages")
-
-    if not hostname or not isinstance(packages, list):
-        return JSONResponse(status_code=400, content={"detail": "Invalid payload"})
-
-    save_agent_report(hostname, packages)
-    return {"status": "success", "hostname": hostname}
 
 # Register the protected routes
 app.include_router(protected_router)

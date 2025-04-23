@@ -7,6 +7,8 @@ from config import DB_PATH
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from models.agent_report import AgentReport, Package, CVE
+
 
 # You can adjust your DB URL here
 SQLALCHEMY_DATABASE_URL = "sqlite:///./openvulnscan.db"

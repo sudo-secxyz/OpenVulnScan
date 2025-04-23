@@ -1,5 +1,6 @@
+# models/users.py
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
-from database import Base
+from database.base import Base
 from datetime import datetime
 
 class User(Base):
