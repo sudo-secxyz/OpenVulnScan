@@ -17,6 +17,7 @@ A simple vulnerability scanning application built with FastAPI.
 
 3. Access the web interface:
    [http://localhost:8000](http://localhost:8000)
+   ![alt text](image.png)
 
 ## Features
 
