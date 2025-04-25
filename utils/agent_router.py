@@ -6,6 +6,7 @@ from datetime import datetime
 from auth.dependencies import require_authentication
 from database.db_manager import get_db
 from models.agent_report import AgentReport, Package, CVE
+from models.users import User
 from utils import cve_checker
 
 from fastapi.templating import Jinja2Templates
@@ -13,7 +14,7 @@ from fastapi.responses import HTMLResponse
 
 router = APIRouter()
 
-@router.post("/agent/report", status_code=201, dependencies=[Depends(require_authentication)], tags=["agent"])
+@router.post("/agent/report", status_code=201,  tags=["agent"])
 def submit_agent_report(request: Request, payload: dict, db: Session = Depends(get_db)):
     hostname = payload.get("hostname")
     os_info = payload.get("os")
@@ -57,8 +58,8 @@ def submit_agent_report(request: Request, payload: dict, db: Session = Depends(g
 
 templates = Jinja2Templates(directory="templates")
 
-@router.get("/agent/report/{report_id}", response_class=HTMLResponse, dependencies=[Depends(require_authentication)], tags=["agent"])
-def get_agent_report(request: Request, report_id: str, db: Session = Depends(get_db)):
+@router.get("/agent/report/{report_id}", response_class=HTMLResponse, tags=["agent"])
+def get_agent_report(request: Request, report_id: str, db: Session = Depends(get_db), user: User = Depends(require_authentication)):
     report = db.get(AgentReport, report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Agent report not found")
@@ -83,8 +84,8 @@ def get_agent_report(request: Request, report_id: str, db: Session = Depends(get
         "packages": package_data
     })
 
-@router.get("/agent/reports", dependencies=[Depends(require_authentication)], tags=["agent"])
-def list_agent_reports(db: Session = Depends(get_db)):
+@router.get("/agent/reports", tags=["agent"])
+def list_agent_reports(db: Session = Depends(get_db), user: User = Depends(require_authentication)):
     reports = db.scalars(select(AgentReport)).all()
     results = []
 

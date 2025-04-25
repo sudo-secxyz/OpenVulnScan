@@ -88,24 +88,25 @@ def create_default_admin():
 
 
 # Protected router
-protected_router = APIRouter(dependencies=[Depends(require_authentication)])
+protected_router = APIRouter()
 
 @protected_router.get("/", response_class=HTMLResponse)
-def read_root(request: Request):
+def read_root(request: Request, user: User= Depends(require_authentication)):
     logger.info("Accessing main page")
     scans = get_all_scans()
     return templates.TemplateResponse("index.html", {"request": request, "scans": scans})
 
+
 @protected_router.post("/scan", response_model=ScanResult, tags=['scan'])
-def start_scan(req: ScanRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    logger.info(f"Starting new scan for targets: {req.targets}")
+def start_scan(req: ScanRequest, background_tasks: BackgroundTasks, user: User = Depends(require_authentication), db: Session = Depends(get_db)):
+    logger.info(f"User {user.email} starting scan for: {req.targets}")
     result = start_scan_task(req, background_tasks)
     logger.info(f"Scan initiated with ID: {result.id}")
     return result
 
 @protected_router.get("/scan/{scan_id}", response_class=HTMLResponse, tags=['scan'])
-def get_scan(scan_id: str, request: Request, db: Session = Depends(get_db)):
-    logger.info(f"Viewing scan results for scan ID: {scan_id}")
+def get_scan(scan_id: str, request: Request, db: Session = Depends(get_db), user: User = Depends(require_authentication)):
+    logger.info(f"User {user.email} Viewing scan results for scan ID: {scan_id}")
     scan_data = gs(scan_id, db=db)
     if not scan_data:
         return HTMLResponse(f"<h1>Scan ID {scan_id} not found</h1>", status_code=404)
@@ -116,15 +117,15 @@ def get_scan(scan_id: str, request: Request, db: Session = Depends(get_db)):
     })
 
 @protected_router.get("/scan/{scan_id}/pdf", response_class=FileResponse, tags=['scan','report'])
-def get_scan_pdf(scan_id: str):
-    logger.info(f"Generating PDF report for scan ID: {scan_id}")
+def get_scan_pdf(scan_id: str, user: User = Depends(require_authentication)):
+    logger.info(f"User {user.email} Generating PDF report for scan ID: {scan_id}")
     pdf_file_path = generate_scan_report(scan_id)
     if not os.path.exists(pdf_file_path):
         raise HTTPException(status_code=404, detail="PDF report not found")
     return FileResponse(pdf_file_path, filename=f"scan_{scan_id}_report.pdf", media_type="application/pdf")
 
 @protected_router.get("/api/report/{agent_id}", tags=["agent","report"])
-def get_agent_report(agent_id: int, db: Session = Depends(get_db)):
+def get_agent_report(agent_id: int, db: Session = Depends(get_db), user: User = Depends(require_authentication)):
     report = db.query(AgentReport).filter(AgentReport.id == agent_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
@@ -201,3 +202,14 @@ if __name__ == "__main__":
 
 # Register the protected routes
 app.include_router(protected_router)
+from fastapi.exceptions import RequestValidationError
+from fastapi import HTTPException
+
+@app.exception_handler(HTTPException)
+async def auth_exception_handler(request: Request, exc: HTTPException):
+    if exc.status_code == 401:
+        return RedirectResponse(url="/login")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )

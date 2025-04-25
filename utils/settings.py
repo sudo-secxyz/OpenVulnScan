@@ -52,15 +52,15 @@ def change_password(
 CVE_API_URL = os.getenv("CVE_API_URL", "https://api.osv.dev/v1/query")
 
 @router.get("/settings", response_class=HTMLResponse, dependencies=[Depends(require_authentication)], tags=["Configuration"])
-def settings_page(request: Request):
+def settings_page(request: Request, user: User = Depends(require_authentication)):
     """Display settings page."""
     return templates.TemplateResponse("settings.html", {
         "request": request,
         "cve_api_url": CVE_API_URL
     })
 
-@router.post("/settings/update", dependencies=[Depends(require_authentication)], tags=["Configuration"])
-def update_settings(request: Request, cve_api_url: str = Form(...)):
+@router.post("/settings/update",  tags=["Configuration"])
+def update_settings(request: Request, cve_api_url: str = Form(...), user: User = Depends(require_authentication)):
     """Update CVE API URL setting."""
     global CVE_API_URL
     CVE_API_URL = cve_api_url
@@ -68,7 +68,7 @@ def update_settings(request: Request, cve_api_url: str = Form(...)):
 
 @router.post("/cve/check", response_class=JSONResponse, dependencies=[Depends(require_authentication)], tags=["agent"])
 async def check_package_cves(
-    payload: dict = Body(...)
+    payload: dict = Body(...), user: User = Depends(require_authentication)
 ):
     """
     Dynamically query the CVE database for a given package name, version, and ecosystem.
@@ -101,8 +101,8 @@ async def check_package_cves(
     except Exception as e:
         return {"status": "error", "message": str(e)}
     
-@router.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(require_authentication)])
-def dashboard(request: Request, db: Session = Depends(get_db)):
+@router.get("/dashboard", response_class=HTMLResponse)
+def dashboard(request: Request, db: Session = Depends(get_db), user: User = Depends(require_authentication)):
     report_count = db.scalar(select(func.count()).select_from(AgentReport))
     package_count = db.scalar(select(func.count()).select_from(Package))
     cve_count = db.scalar(select(func.count()).select_from(CVE))
