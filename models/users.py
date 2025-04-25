@@ -14,3 +14,10 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     auth_provider = Column(String, default="manual")  # 'google', 'github', 'wallet', 'manual'
     wallet_address = Column(String, unique=True, nullable=True)
+    role = Column(String, default="user")  # "admin", "user", "readonly"
+
+    def is_admin(self):
+        return self.role == "admin"
+    
+    def is_readonly(self):
+        return self.role == "readonly"

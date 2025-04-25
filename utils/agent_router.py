@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 from datetime import datetime
-from auth.dependencies import require_authentication
+from auth.dependencies import require_authentication, get_current_user
 from database.db_manager import get_db
 from models.agent_report import AgentReport, Package, CVE
 from models.users import User
@@ -81,7 +81,8 @@ def get_agent_report(request: Request, report_id: str, db: Session = Depends(get
         "hostname": report.hostname,
         "os": report.os_info,
         "reported_at": report.reported_at,
-        "packages": package_data
+        "packages": package_data,
+        "current_user": get_current_user
     })
 
 @router.get("/agent/reports", tags=["agent"])

@@ -18,7 +18,7 @@ from passlib.hash import bcrypt
 from utils.settings import router as settings_router
 # Auth Routers
 from auth.google import router as google_auth
-from auth.local import router as local_auth
+from auth.local import router as local_auth, require_admin, get_current_user, get_current_user_template
 from auth.dependencies import require_authentication
 
 
@@ -49,6 +49,8 @@ from starlette.authentication import (
     AuthenticationBackend, AuthCredentials, SimpleUser, UnauthenticatedUser
 )
 
+
+
 # Example dummy backend – replace with your real auth logic
 class BasicAuthBackend(AuthenticationBackend):
     async def authenticate(self, conn):
@@ -75,10 +77,10 @@ def create_default_admin():
     db: Session = SessionLocal()
     admin_email = "admin@openvulnscan.local"
     default_password = "admin123"  # Change this in production
-
+    role='admin'
     if not db.query(User).filter_by(email=admin_email).first():
         hashed_pw = bcrypt.hash(default_password)
-        admin = User(email=admin_email, hashed_password=hashed_pw, is_admin=True)
+        admin = User(email=admin_email, hashed_password=hashed_pw, is_admin=True, role=role)
         db.add(admin)
         db.commit()
         print(f"Default admin user created: {admin_email}")
@@ -94,7 +96,7 @@ protected_router = APIRouter()
 def read_root(request: Request, user: User= Depends(require_authentication)):
     logger.info("Accessing main page")
     scans = get_all_scans()
-    return templates.TemplateResponse("index.html", {"request": request, "scans": scans})
+    return templates.TemplateResponse("index.html", {"request": request, "scans": scans, "current_user": get_current_user})
 
 
 @protected_router.post("/scan", response_model=ScanResult, tags=['scan'])
@@ -113,7 +115,8 @@ def get_scan(scan_id: str, request: Request, db: Session = Depends(get_db), user
     return templates.TemplateResponse("scan_result.html", {
         "request": request, 
         "scan_id": scan_id,
-        **scan_data
+        **scan_data,
+        "current_user": get_current_user
     })
 
 @protected_router.get("/scan/{scan_id}/pdf", response_class=FileResponse, tags=['scan','report'])

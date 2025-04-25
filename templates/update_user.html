@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h2>Update Your Information</h2>
+  <form action="/user/update" method="post">
+    <div>
+      <label for="email">Email:</label>
+      <input type="email" name="email" value="{{ user.email }}" required>
+    </div>
+
+    {% if user.role == 'admin' %}
+      <div>
+        <label for="role">Role:</label>
+        <select name="role">
+          <option value="user" {% if user.role == 'user' %}selected{% endif %}>User</option>
+          <option value="readonly" {% if user.role == 'readonly' %}selected{% endif %}>Readonly</option>
+          <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+        </select>
+      </div>
+    {% endif %}
+
+    <button type="submit">Update</button>
+  </form>
+{% endblock %}

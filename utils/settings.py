@@ -37,15 +37,15 @@ def change_password(
     user: User = Depends(get_current_user)
 ):
     if new_password != confirm_password:
-        return templates.TemplateResponse("settings.html", {"request": request, "error": "Passwords do not match."})
+        return templates.TemplateResponse("settings.html", {"request": request, "error": "Passwords do not match.", "current_user": get_current_user})
 
     if not pwd_context.verify(current_password, user.hashed_password):
-        return templates.TemplateResponse("settings.html", {"request": request, "error": "Current password is incorrect."})
+        return templates.TemplateResponse("settings.html", {"request": request, "error": "Current password is incorrect.", "current_user": get_current_user})
 
     user.hashed_password = pwd_context.hash(new_password)
     db.commit()
 
-    return templates.TemplateResponse("settings.html", {"request": request, "success": "Password updated successfully."})
+    return templates.TemplateResponse("settings.html", {"request": request, "success": "Password updated successfully.", "current_user": get_current_user})
 
 
 # Default CVE API URL (can be modified in settings)
@@ -57,7 +57,7 @@ def settings_page(request: Request, user: User = Depends(require_authentication)
     return templates.TemplateResponse("settings.html", {
         "request": request,
         "cve_api_url": CVE_API_URL
-    })
+    , "current_user": get_current_user})
 
 @router.post("/settings/update",  tags=["Configuration"])
 def update_settings(request: Request, cve_api_url: str = Form(...), user: User = Depends(require_authentication)):
@@ -131,7 +131,8 @@ def dashboard(request: Request, db: Session = Depends(get_db), user: User = Depe
         "package_count": package_count,
         "cve_count": cve_count,
         "top_packages": top_packages,
-        "agents": agents
+        "agents": agents,
+        "current_user": get_current_user
     })
 
     

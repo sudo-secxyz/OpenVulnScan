@@ -7,6 +7,7 @@ from fastapi import Request
 from starlette.responses import RedirectResponse
 from starlette.authentication import UnauthenticatedUser
 
+
 def require_authentication(request: Request, db: Session = Depends(get_db)) -> User:
     user_data = request.session.get("user")
     if not user_data:
@@ -33,3 +34,8 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     
     return user
 
+def require_admin(request: Request, db: Session = Depends(get_db)) -> User:
+    user = request.state.user  # Assuming user is stored in state
+    if not user.is_admin():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    return user

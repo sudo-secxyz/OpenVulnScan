@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="container mx-auto">
+    <h2 class="text-2xl font-bold mb-4">User Management</h2>
+
+    <!-- User Management Form -->
+    <form method="POST" action="/admin/create_user" class="mb-8">
+      <div class="grid grid-cols-1 gap-4">
+        <div>
+          <label for="username" class="block font-medium">Username</label>
+          <input type="text" name="username" id="username" class="w-full p-2 border rounded" required />
+        </div>
+        <div>
+          <label for="email" class="block font-medium">Email</label>
+          <input type="email" name="email" id="email" class="w-full p-2 border rounded" required />
+        </div>
+        <div>
+          <label for="password" class="block font-medium">Password</label>
+          <input type="password" name="password" id="password" class="w-full p-2 border rounded" required />
+        </div>
+        <div>
+          <label for="role" class="block font-medium">Role</label>
+          <select name="role" id="role" class="w-full p-2 border rounded" required>
+            <option value="admin">Admin</option>
+            <option value="user">User</option>
+            <option value="readonly">Readonly</option>
+          </select>
+        </div>
+        <button type="submit" class="mt-4 bg-indigo-600 text-white p-2 rounded">Create User</button>
+      </div>
+    </form>
+
+    <!-- List of Users -->
+    <h3 class="text-xl font-bold mb-2">Existing Users</h3>
+    <ul>
+      {% for user in users %}
+        <li class="py-2">
+          {{ user.username }} ({{ user.email }}) - {{ user.role }}
+          {% if current_user.id != user.id %}
+            <a href="/admin/edit_user/{{ user.id }}" class="text-indigo-600 hover:text-indigo-800">Edit</a> |
+            <a href="/admin/delete_user/{{ user.id }}" class="text-red-600 hover:text-red-800">Delete</a>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endblock %}
