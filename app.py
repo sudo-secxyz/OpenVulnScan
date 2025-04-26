@@ -85,7 +85,7 @@ def create_default_admin():
     else:
         print("Admin user already exists.")
     db.close()
-    
+
 # Protected router
 protected_router = APIRouter()
 
@@ -175,6 +175,7 @@ if __name__ == "__main__":
 
 # Register protected routes
 app.include_router(protected_router)
+
 
 @app.exception_handler(HTTPException)
 async def auth_exception_handler(request: Request, exc: HTTPException):

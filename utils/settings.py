@@ -14,7 +14,10 @@ from starlette.status import HTTP_303_SEE_OTHER
 from auth.dependencies import require_authentication , get_current_user, cookie_signer
 import httpx
 from utils import config  
+import logging
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -41,22 +44,65 @@ def change_password(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-    if new_password != confirm_password:
-        return templates.TemplateResponse("settings.html", {"request": request, "error": "Passwords do not match.", "current_user": user})
+    try:
+        logger.info(f"User {user.email} is attempting to change password.")
 
-    if not pwd_context.verify(current_password, user.hashed_password):
-        return templates.TemplateResponse("settings.html", {"request": request, "error": "Current password is incorrect.", "current_user": user})
+        if new_password != confirm_password:
+            logger.warning("Passwords do not match.")
+            return templates.TemplateResponse("settings.html", {"request": request, "error": "Passwords do not match.", "current_user": user})
 
-    user.hashed_password = pwd_context.hash(new_password)
-    db.commit()
+        if not pwd_context.verify(current_password, user.hashed_password):
+            logger.warning("Incorrect current password.")
+            return templates.TemplateResponse("settings.html", {"request": request, "error": "Incorrect current password.", "current_user": user})
 
-    return templates.TemplateResponse("settings.html", {"request": request, "success": "Password updated successfully.", "current_user": user})
+        db_user = db.query(User).filter(User.id == user.id).first()
+        db_user.hashed_password = pwd_context.hash(new_password)
+        db.commit()
+
+        # Reload user from DB
+        logger.info("Password successfully updated.")
+
+        return templates.TemplateResponse("settings.html", {"request": request, "success": "Password updated successfully.", "current_user": db_user})
+    
+    except Exception as e:
+        logger.error(f"Exception in password change: {e}")
+        return templates.TemplateResponse("settings.html", {"request": request, "error": "Something went wrong.", "current_user": user})
+
 
 
 
 @router.post("/settings/update", tags=["Configuration"])
-def update_settings(request: Request, cve_api_url: str = Form(...), user: User = Depends(get_current_user)):
+def update_settings(
+    request: Request,
+    cve_api_url: str = Form(...),
+    user: User = Depends(get_current_user)
+):
+    # Update .env file
+    env_path = ".env"
+    updated_lines = []
+
+    # Read current .env and update or add the CVE_API_URL line
+    if os.path.exists(env_path):
+        with open(env_path, "r") as f:
+            lines = f.readlines()
+
+        for line in lines:
+            if line.startswith("CVE_API_URL="):
+                updated_lines.append(f"CVE_API_URL={cve_api_url}\n")
+            else:
+                updated_lines.append(line)
+
+        if not any(line.startswith("CVE_API_URL=") for line in lines):
+            updated_lines.append(f"CVE_API_URL={cve_api_url}\n")
+    else:
+        updated_lines = [f"CVE_API_URL={cve_api_url}\n"]
+
+    with open(env_path, "w") as f:
+        f.writelines(updated_lines)
+
+    # Update runtime config too
     config.CVE_API_URL = cve_api_url
+
     return RedirectResponse(url="/settings", status_code=HTTP_303_SEE_OTHER)
 
 @router.post("/cve/check", response_class=JSONResponse, dependencies=[Depends(require_authentication)], tags=["agent"])
