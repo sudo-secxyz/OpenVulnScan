@@ -17,10 +17,10 @@
       <a href="/agent/reports" class="text-gray-700 hover:text-indigo-600 font-medium">Agent Reports</a>
       <a href="/dashboard" class="text-gray-700 hover:text-indigo-600 font-medium">Vuln Dashboard</a>
       <a href="/settings" class="text-gray-700 hover:text-indigo-600 font-medium" title="Settings">&#9881;</a>
-      {% if current_user.role == "admin" %}
-          <a href="/admin/users" class="text-gray-700 hover:text-indigo-600 font-medium">User Management</a>
-      {% endif %}
       {% if current_user %}
+      {% if current_user.role == "admin" %}
+      <a href="/admin/users">User Management</a>
+      {% endif %}
         <a href="/logout" class="text-gray-700 hover:text-red-600 font-medium">Logout</a>
       {% else %}
         <a href="/login" class="text-gray-700 hover:text-indigo-600 font-medium">Login</a>

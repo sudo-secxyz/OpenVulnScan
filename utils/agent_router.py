@@ -1,19 +1,22 @@
+#utils/agent_router.py
 from fastapi import APIRouter, Request, Depends, status, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 from datetime import datetime
-from auth.dependencies import require_authentication, get_current_user
 from database.db_manager import get_db
 from models.agent_report import AgentReport, Package, CVE
 from models.users import User
 from utils import cve_checker
-
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
+from itsdangerous import URLSafeSerializer
+from auth.dependencies import require_authentication, get_current_user, cookie_signer
 
+# Initialize router and session serializer
 router = APIRouter()
-
+serializer = cookie_signer
+# Submit agent report
 @router.post("/agent/report", status_code=201,  tags=["agent"])
 def submit_agent_report(request: Request, payload: dict, db: Session = Depends(get_db)):
     hostname = payload.get("hostname")
@@ -38,7 +41,7 @@ def submit_agent_report(request: Request, payload: dict, db: Session = Depends(g
         db.add(package)
         db.flush()  # Assign ID before using in CVE
 
-        matched_cves = cve_checker.check_cves_for_package(name, version)
+        matched_cves = cve_checker.check_cve_api(name, version)
         for cve in matched_cves:
             cve_id = cve.get("id", "UNKNOWN-CVE")
             summary = cve.get("details", "No summary available")
@@ -55,11 +58,12 @@ def submit_agent_report(request: Request, payload: dict, db: Session = Depends(g
     db.commit()
     return {"detail": "Agent report submitted successfully", "report_id": report.id}
 
-
+# Templates for rendering HTML responses
 templates = Jinja2Templates(directory="templates")
 
+# Get agent report by ID (requires authentication)
 @router.get("/agent/report/{report_id}", response_class=HTMLResponse, tags=["agent"])
-def get_agent_report(request: Request, report_id: str, db: Session = Depends(get_db), user: User = Depends(require_authentication)):
+def get_agent_report(request: Request, report_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     report = db.get(AgentReport, report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Agent report not found")
@@ -82,18 +86,17 @@ def get_agent_report(request: Request, report_id: str, db: Session = Depends(get
         "os": report.os_info,
         "reported_at": report.reported_at,
         "packages": package_data,
-        "current_user": get_current_user
+        "current_user": user
     })
 
+# List all agent reports (requires authentication)
 @router.get("/agent/reports", tags=["agent"])
-def list_agent_reports(db: Session = Depends(get_db), user: User = Depends(require_authentication)):
+def list_agent_reports(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     reports = db.scalars(select(AgentReport)).all()
     results = []
 
     for report in reports:
-        package_count = db.scalar(
-        select(func.count()).where(Package.report_id == report.id)
-        )
+        package_count = db.scalar(select(func.count()).where(Package.report_id == report.id))
         results.append({
             "report_id": report.id,
             "hostname": report.hostname,
@@ -102,3 +105,4 @@ def list_agent_reports(db: Session = Depends(get_db), user: User = Depends(requi
         })
 
     return results
+

@@ -1,27 +1,17 @@
 # OpenVulnScan/utils/cve_checker.py
 
 import requests
-from utils.settings import CVE_API_URL
+import httpx
+from utils import config  # Direct import of config, not settings
 
-OSV_API_URL = CVE_API_URL
-
-def check_cves_for_package(name: str, version: str):
-    payload = {
-        "package": {
-            "name": name,
-            "ecosystem": "Debian"
-        },
+async def check_cve_api(package_name, version):
+    query = {
+        "package": {"name": package_name, "ecosystem": "Debian"},
         "version": version
     }
 
-    try:
-        response = requests.post(OSV_API_URL, json=payload)
-        if response.status_code == 200:
-            data = response.json()
-            return data.get("vulns", [])
-        else:
-            print(f"Failed to fetch CVEs for {name}: {response.text}")
-            return []
-    except Exception as e:
-        print(f"Error checking CVEs for {name}: {e}")
-        return []
+    async with httpx.AsyncClient() as client:
+        response = await client.post(config.CVE_API_URL, json=query)
+        response.raise_for_status()
+        data = response.json()
+        return data.get("vulns", [])

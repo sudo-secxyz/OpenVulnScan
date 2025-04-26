@@ -3,39 +3,62 @@ from fastapi import Request, HTTPException, status, Depends
 from sqlalchemy.orm import Session
 from database.db_manager import get_db
 from models.users import User
+from models.auth import BasicUser
 from fastapi import Request
 from starlette.responses import RedirectResponse
 from starlette.authentication import UnauthenticatedUser
+from utils import config
+from itsdangerous import URLSafeSerializer, BadSignature
+from database.db_manager import SessionLocal
 
 
-def require_authentication(request: Request, db: Session = Depends(get_db)) -> User:
-    user_data = request.session.get("user")
-    if not user_data:
+cookie_signer = URLSafeSerializer(config.SECRET_KEY, salt="auth-cookie")
+COOKIE_NAME = "auth_token"
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def get_current_user(request: Request, db: Session = Depends(get_db)):
+    session_token = request.cookies.get("auth_token")
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        session_data = cookie_signer.loads(session_token)
+    except BadSignature:
+        raise HTTPException(status_code=401, detail="Invalid or expired session token")
+
+    user = db.query(User).filter(User.id == session_data['id']).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    return user
+
+
+def require_authentication(request: Request):
+    token = request.cookies.get("auth_token")
+    if not token:
+        print("Token not found, redirecting to login.")
         raise HTTPException(status_code=401, detail="Authentication required")
-
-    user_email = user_data["email"]  # Assuming 'email' is in the session data
-    user = db.query(User).filter_by(email=user_email).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid user")
-
-    return user
-
-
-
-def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
-    user_data = request.session.get("user")
-    if not user_data:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     
-    user_id = user_data["id"]  # Directly use the 'id' from session
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-    
+    try:
+        session_data = cookie_signer.loads(token)
+        print(f"Session data: {session_data}")
+        return BasicUser(**session_data)
+    except Exception as e:
+        print(f"Error deserializing token: {str(e)}")
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
+async def require_admin(request: Request):
+    user = await require_authentication(request)
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin privileges required")
     return user
 
-def require_admin(request: Request, db: Session = Depends(get_db)) -> User:
-    user = request.state.user  # Assuming user is stored in state
-    if not user.is_admin():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
-    return user
+

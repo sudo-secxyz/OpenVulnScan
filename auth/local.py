@@ -1,18 +1,24 @@
-from fastapi import APIRouter, Request, Form, Depends, HTTPException, status
+#auth/local.py
+from fastapi import APIRouter, Request, Form, Depends, HTTPException
 from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlalchemy.orm import Session
-from passlib.hash import bcrypt
 from starlette.status import HTTP_303_SEE_OTHER
+from passlib.hash import bcrypt
+from itsdangerous import URLSafeSerializer, BadSignature
+from fastapi.templating import Jinja2Templates
+from auth.dependencies import cookie_signer, get_current_user
+
 
 from database.db_manager import SessionLocal
-from auth.dependencies import get_current_user, require_admin
 from models.users import User
+from models.auth import BasicUser
 from config import TEMPLATES_DIR
-from fastapi.templating import Jinja2Templates
 
 router = APIRouter()
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
+serializer = cookie_signer
 
+# Dependency to get the database session
 def get_db():
     db = SessionLocal()
     try:
@@ -20,29 +26,38 @@ def get_db():
     finally:
         db.close()
 
-def get_current_user_template(request: Request, current_user: User = Depends(get_current_user)):
-    # You can return any default value here if the user is not authenticated
-    return {"request": request, "current_user": current_user}
 
+# Route to show the login page
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
+# Login functionality with session token creation
 @router.post("/login")
 def login(request: Request, email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+    # Fetch user from the database
     user = db.query(User).filter(User.email == email).first()
+
+    # Validate the user credentials
     if not user or not bcrypt.verify(password, user.hashed_password):
         return templates.TemplateResponse("login.html", {
             "request": request,
             "error": "Invalid email or password"
         })
-    request.session["user"] = {
-        "id": user.id,
-        "email": user.email,
-        "is_admin": user.is_admin
-    }
-    return RedirectResponse("/", status_code=HTTP_303_SEE_OTHER)
 
+    # Prepare session data
+    session_data = {"id": user.id, "email": user.email, "role": user.role}
+
+    # Serialize the session data
+    token = serializer.dumps(session_data)
+
+    # Prepare the response with a redirect and set the auth_token in a cookie
+    response = RedirectResponse("/", status_code=HTTP_303_SEE_OTHER)
+    response.set_cookie("auth_token", token, httponly=True, max_age=60*60*24*14)  # 14 days max age
+
+    return response
+
+# Route for user registration
 @router.get("/register", response_class=HTMLResponse)
 def register_page(request: Request):
     return templates.TemplateResponse("register.html", {"request": request})
@@ -55,88 +70,81 @@ def register(request: Request, email: str = Form(...), password: str = Form(...)
             "error": "User already exists"
         })
     hashed_pw = bcrypt.hash(password)
-    user = User(email=email, hashed_password=hashed_pw, is_admin=False)
-    db.add(user)
+    new_user = User(email=email, hashed_password=hashed_pw, role="user")
+    db.add(new_user)
     db.commit()
     return RedirectResponse("/login", status_code=HTTP_303_SEE_OTHER)
 
+# Logout functionality and clearing the session token
 @router.get("/logout")
-def logout(request: Request):
-    request.session.clear()
-    return RedirectResponse("/login", status_code=HTTP_303_SEE_OTHER)
+def logout():
+    response = RedirectResponse("/login", status_code=HTTP_303_SEE_OTHER)
+    response.delete_cookie("session_token")
+    return response
 
+# Admin routes protected by authentication
 @router.get("/admin/users", response_class=HTMLResponse)
-def get_users(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if not current_user.is_admin():
+def admin_user_list(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin privileges required")
-    
     users = db.query(User).all()
-    return templates.TemplateResponse("user_management.html", {"request": request, "users": users, "current_user": current_user})
+    return templates.TemplateResponse("user_management.html", {"request": request, "users": users, "current_user": user})
 
 @router.post("/admin/users/update/{user_id}")
-def update_user_by_admin(user_id: int, email: str, role: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if not current_user.is_admin():
+def admin_user_update(user_id: int, email: str, role: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin privileges required")
-    
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
+
+    db_user = db.query(User).filter(User.id == user_id).first()
+    if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
-    
-    user.email = email
-    user.role = role
+
+    db_user.email = email
+    db_user.role = role
     db.commit()
-    
     return {"msg": "User account updated successfully"}
-    
+
 @router.post("/admin/users/delete/{user_id}")
-def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.id == user_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete your own account")
-    
-    target_user = db.query(User).filter(User.id == user_id).first()
-    if not target_user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    
-    if not current_user.is_admin():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
-    
-    db.delete(target_user)
+def admin_user_delete(user_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if user.id == user_id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+
+    db_user = db.query(User).filter(User.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    db.delete(db_user)
     db.commit()
-    
     return {"msg": "User deleted successfully"}
 
-
+# User update route, with authentication
 @router.get("/user/update", response_class=HTMLResponse)
-def update_user_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return templates.TemplateResponse("update_user.html", {"request": request, "user": current_user,"current_user": current_user})
-
+def user_update_page(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return templates.TemplateResponse("update_user.html", {"request": request, "user": user, "current_user": user})
 
 @router.post("/user/update")
-def update_user(request: Request, email: str, role: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.id != request.session.get("user_id"):  # Ensure users can only update their own account
+def user_update(request: Request, email: str, role: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    # Ensure user can only update their own account
+    if user.id != user.id:
         raise HTTPException(status_code=403, detail="You can only update your own account")
 
-    user = db.query(User).filter(User.id == current_user.id).first()
-    if not user:
+    db_user = db.query(User).filter(User.id == user.id).first()
+    if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    user.email = email
-    user.role = role  # You can customize this further if needed
+    db_user.email = email
+    db_user.role = role
     db.commit()
-    
     return {"msg": "Your account has been updated successfully"}
 
+# Admin user creation route
 @router.post("/admin/create_user")
-async def create_user(username: str = Form(...), email: str = Form(...), password: str = Form(...), role: str = Form(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != "admin":
+async def admin_create_user(username: str = Form(...), email: str = Form(...), password: str = Form(...), role: str = Form(...), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if user.role != "admin":
         raise HTTPException(status_code=403, detail="Access denied")
-    
-    # Hash password before saving
-    hashed_password = bcrypt.hash(password)  # Ensure you use a secure password hashing method.
-    
-    new_user = User(username=username, email=email, hashed_password=hashed_password, role=role)
+
+    new_user = User(username=username, email=email, hashed_password=bcrypt.hash(password), role=role)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-
     return {"message": "User created successfully"}
