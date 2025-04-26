@@ -77,7 +77,7 @@
             <li class="scan-item">
                 <a href="/scan/{{ scan['scan_id'] }}" class="scan-link">Scan {{ scan['scan_id'][:8] }}...</a>
                 <div class="scan-info">
-                    Target(s): {{ scan.targets | join(', ') }}<br>
+                    Target(s): {{ scan.scan_targets | join(', ') }}<br>
                     Started: {{ scan.started_at }}
                     {% if scan.completed_at %}
                     | Completed: {{ scan.completed_at }}
@@ -92,7 +92,7 @@
 
     <script>
         document.getElementById('scanForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
+            e.preventDefault();  
             
             const targetsInput = document.getElementById('targets').value;
             const targets = targetsInput.split(',').map(t => t.trim()).filter(t => t);

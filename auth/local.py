@@ -91,7 +91,7 @@ def admin_user_list(request: Request, db: Session = Depends(get_db), user: User 
     return templates.TemplateResponse("user_management.html", {"request": request, "users": users, "current_user": user})
 
 @router.post("/admin/users/update/{user_id}")
-def admin_user_update(user_id: int, email: str, role: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def admin_user_update(user_id: int, email: str = Form(...), role: str = Form(...), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin privileges required")
 
@@ -136,6 +136,21 @@ def user_update(request: Request, email: str, role: str, db: Session = Depends(g
     db_user.role = role
     db.commit()
     return {"msg": "Your account has been updated successfully"}
+
+@router.get("/admin/users/update/{user_id}", response_class=HTMLResponse)
+def admin_user_update_page(user_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+
+    db_user = db.query(User).filter(User.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return templates.TemplateResponse("update_user.html", {
+        "request": request,
+        "user": db_user,
+        "current_user": user
+    })
 
 # Admin user creation route
 @router.post("/admin/create_user")

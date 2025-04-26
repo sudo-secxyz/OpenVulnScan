@@ -7,7 +7,7 @@
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-50 text-gray-900">
-
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
   <!-- Header/Nav -->
 <header class="bg-white shadow mb-8">
   <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
@@ -16,16 +16,26 @@
       <a href="/" class="text-gray-700 hover:text-indigo-600 font-medium">Home</a>
       <a href="/agent/reports" class="text-gray-700 hover:text-indigo-600 font-medium">Agent Reports</a>
       <a href="/dashboard" class="text-gray-700 hover:text-indigo-600 font-medium">Vuln Dashboard</a>
-      <a href="/settings" class="text-gray-700 hover:text-indigo-600 font-medium" title="Settings">&#9881;</a>
       {% if current_user %}
+  <div x-data="{ open: false }" class="relative inline-block text-left">
+    <button @click="open = !open" class="flex items-center space-x-2 hover:text-indigo-600 focus:outline-none">
+      <span class="font-medium">{{ current_user.email }}</span>
+      <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.939l3.71-3.71a.75.75 0 111.06 1.061l-4.24 4.25a.75.75 0 01-1.06 0L5.25 8.29a.75.75 0 01-.02-1.06z" clip-rule="evenodd"/>
+      </svg>
+    </button>
+    <div x-show="open" @click.away="open = false" class="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-50">
+      <a href="/settings" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Settings</a>
       {% if current_user.role == "admin" %}
-      <a href="/admin/users">User Management</a>
+        <a href="/admin/users" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">User Management</a>
       {% endif %}
-        <a href="/logout" class="text-gray-700 hover:text-red-600 font-medium">Logout</a>
-      {% else %}
-        <a href="/login" class="text-gray-700 hover:text-indigo-600 font-medium">Login</a>
-        <a href="/register" class="text-gray-700 hover:text-indigo-600 font-medium">Register</a>
-      {% endif %}
+      <a href="/logout" class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100">Logout</a>
+    </div>
+  </div>
+{% else %}
+  <a href="/login" class="text-gray-700 hover:text-indigo-600 font-medium">Login</a>
+  <a href="/register" class="text-gray-700 hover:text-indigo-600 font-medium">Register</a>
+{% endif %}
     </nav>
   </div>
 </header>
