@@ -11,13 +11,14 @@ from utils.agent_router import AgentReport
 from passlib.context import CryptContext
 from itsdangerous import URLSafeSerializer, BadSignature
 from starlette.status import HTTP_303_SEE_OTHER
-from auth.dependencies import require_authentication , get_current_user 
+from auth.dependencies import require_authentication , get_current_user, cookie_signer
 import httpx
 from utils import config  
 
+
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
-serializer = URLSafeSerializer("super-secret-key")
+serializer = cookie_signer
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 

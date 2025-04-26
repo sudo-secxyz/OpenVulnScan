@@ -85,7 +85,7 @@ def create_default_admin():
     else:
         print("Admin user already exists.")
     db.close()
-
+    
 # Protected router
 protected_router = APIRouter()
 

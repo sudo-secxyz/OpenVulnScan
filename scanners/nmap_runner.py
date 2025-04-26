@@ -4,6 +4,7 @@ import ipaddress
 import xml.etree.ElementTree as ET
 from typing import List, Dict, Any, Union, Optional
 
+
 class NmapRunner:
     def __init__(self, targets: List[str]):
         """

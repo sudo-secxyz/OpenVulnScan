@@ -13,12 +13,13 @@ from fastapi.responses import HTMLResponse
 from itsdangerous import URLSafeSerializer
 from auth.dependencies import require_authentication, get_current_user, cookie_signer
 
+
 # Initialize router and session serializer
 router = APIRouter()
 serializer = cookie_signer
 # Submit agent report
 @router.post("/agent/report", status_code=201,  tags=["agent"])
-def submit_agent_report(request: Request, payload: dict, db: Session = Depends(get_db)):
+async def submit_agent_report(request: Request, payload: dict, db: Session = Depends(get_db)):
     hostname = payload.get("hostname")
     os_info = payload.get("os")
     packages = payload.get("packages", [])
@@ -41,7 +42,7 @@ def submit_agent_report(request: Request, payload: dict, db: Session = Depends(g
         db.add(package)
         db.flush()  # Assign ID before using in CVE
 
-        matched_cves = cve_checker.check_cve_api(name, version)
+        matched_cves = await cve_checker.check_cve_api(name, version)
         for cve in matched_cves:
             cve_id = cve.get("id", "UNKNOWN-CVE")
             summary = cve.get("details", "No summary available")
