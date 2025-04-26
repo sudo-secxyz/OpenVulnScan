@@ -35,7 +35,7 @@ def settings_page(request: Request, user: User = Depends(get_current_user)):
         "current_user": user
     })
 
-@router.post("/settings/change-password")
+@router.post("/settings/change-password", tags=["Configuration"])
 def change_password(
     request: Request,
     current_password: str = Form(...),
@@ -131,7 +131,7 @@ async def check_package_cves(
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-@router.get("/dashboard", response_class=HTMLResponse)
+@router.get("/dashboard", response_class=HTMLResponse, tags=['agent'])
 def dashboard(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     report_count = db.scalar(select(func.count()).select_from(AgentReport))
     package_count = db.scalar(select(func.count()).select_from(Package))

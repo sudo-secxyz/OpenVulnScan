@@ -19,16 +19,16 @@ oauth.register(
     client_kwargs={'scope': 'openid email profile'}
 )
 
-@router.get("/auth")
+@router.get("/auth", tags=['google'])
 async def google_auth():
     return {"msg": "Google auth route"}
 
-@router.get('/login/google')
+@router.get('/login/google', tags=['google'])
 async def login_via_google(request: Request):
     redirect_uri = request.url_for('auth_google_callback')
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
-@router.get('/auth/google/callback')
+@router.get('/auth/google/callback', tags=['google'])
 async def auth_google_callback(request: Request, db: Session = Depends(get_db)):
     token = await oauth.google.authorize_access_token(request)
     user_info = await oauth.google.parse_id_token(request, token)

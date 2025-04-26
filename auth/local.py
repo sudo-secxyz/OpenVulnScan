@@ -28,12 +28,12 @@ def get_db():
 
 
 # Route to show the login page
-@router.get("/login", response_class=HTMLResponse)
+@router.get("/login", response_class=HTMLResponse, tags=['auth'])
 def login_page(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
 # Login functionality with session token creation
-@router.post("/login")
+@router.post("/login", tags=['auth'])
 def login(request: Request, email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     # Fetch user from the database
     user = db.query(User).filter(User.email == email).first()
@@ -58,11 +58,11 @@ def login(request: Request, email: str = Form(...), password: str = Form(...), d
     return response
 
 # Route for user registration
-@router.get("/register", response_class=HTMLResponse)
+@router.get("/register", response_class=HTMLResponse, tags=['auth'])
 def register_page(request: Request):
     return templates.TemplateResponse("register.html", {"request": request})
 
-@router.post("/register")
+@router.post("/register", tags=['auth'])
 def register(request: Request, email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == email).first():
         return templates.TemplateResponse("register.html", {
@@ -76,21 +76,21 @@ def register(request: Request, email: str = Form(...), password: str = Form(...)
     return RedirectResponse("/login", status_code=HTTP_303_SEE_OTHER)
 
 # Logout functionality and clearing the session token
-@router.get("/logout")
+@router.get("/logout", tags=['auth'])
 def logout():
     response = RedirectResponse("/login", status_code=HTTP_303_SEE_OTHER)
     response.delete_cookie("session_token")
     return response
 
 # Admin routes protected by authentication
-@router.get("/admin/users", response_class=HTMLResponse)
+@router.get("/admin/users", response_class=HTMLResponse, tags=['User Management'])
 def admin_user_list(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin privileges required")
     users = db.query(User).all()
     return templates.TemplateResponse("user_management.html", {"request": request, "users": users, "current_user": user})
 
-@router.post("/admin/users/update/{user_id}")
+@router.post("/admin/users/update/{user_id}", tags=['User Management'])
 def admin_user_update(user_id: int, email: str = Form(...), role: str = Form(...), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin privileges required")
@@ -104,7 +104,7 @@ def admin_user_update(user_id: int, email: str = Form(...), role: str = Form(...
     db.commit()
     return {"msg": "User account updated successfully"}
 
-@router.post("/admin/users/delete/{user_id}")
+@router.post("/admin/users/delete/{user_id}", tags=['User Management'])
 def admin_user_delete(user_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     if user.id == user_id:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
@@ -118,7 +118,7 @@ def admin_user_delete(user_id: int, db: Session = Depends(get_db), user: User = 
     return {"msg": "User deleted successfully"}
 
 # User update route, with authentication
-@router.get("/user/update", response_class=HTMLResponse)
+@router.get("/user/update", response_class=HTMLResponse, tags=['Configuration'])
 def user_update_page(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return templates.TemplateResponse("update_user.html", {"request": request, "user": user, "current_user": user})
 
@@ -137,7 +137,7 @@ def user_update(request: Request, email: str, role: str, db: Session = Depends(g
     db.commit()
     return {"msg": "Your account has been updated successfully"}
 
-@router.get("/admin/users/update/{user_id}", response_class=HTMLResponse)
+@router.get("/admin/users/update/{user_id}", response_class=HTMLResponse, tags=['User Management'])
 def admin_user_update_page(user_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin privileges required")
@@ -153,7 +153,7 @@ def admin_user_update_page(user_id: int, request: Request, db: Session = Depends
     })
 
 # Admin user creation route
-@router.post("/admin/create_user")
+@router.post("/admin/create_user", tags=['User Management'])
 async def admin_create_user(username: str = Form(...), email: str = Form(...), password: str = Form(...), role: str = Form(...), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Access denied")

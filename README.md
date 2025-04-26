@@ -23,12 +23,16 @@ A simple vulnerability scanning application built with FastAPI.
 3. Access the web interface:
    [http://localhost:8000](http://localhost:8000)
    ![alt text](image.png)
-
+   ![alt text](image-1.png)
+   ![alt text](image-2.png)
+### API Docs
+![alt text](image-3.png)
 ## Features
 
 - Run vulnerability scans against specified targets
 - View scan history and individual scan results
 - Download PDF reports of scan findings
+- User management
 - Deployable agent to report installed packages to central OpenVulnScan server
 
 ---
