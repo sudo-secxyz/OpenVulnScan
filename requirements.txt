@@ -14,3 +14,5 @@ httpx
 passlib
 itsdangerous
 starlette
+celery[redis]
+redis

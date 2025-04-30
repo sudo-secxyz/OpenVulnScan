@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 from datetime import datetime
+from models.schemas import ScanRequest, ScanTaskResponse
 from database.db_manager import get_db
 from models.agent_report import AgentReport, Package, CVE
 from models.users import User

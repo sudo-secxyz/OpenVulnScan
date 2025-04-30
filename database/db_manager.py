@@ -8,6 +8,12 @@ from models.scan import Scan
 from models.agent_report import AgentReport, Package, CVE
 from config import DB_PATH
 from database.base import Base
+import uuid
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
 
 # Configure SQLAlchemy
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
@@ -27,43 +33,55 @@ def init_db():
     # Instead of manually creating tables, use SQLAlchemy's create_all
     Base
 
-def insert_scan(scan_id, targets, started_at, db=None):
-    """Insert a new scan record into the database"""
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
     
+def insert_scan(targets, findings, started_at):
+    db = SessionLocal()
     try:
         new_scan = Scan(
-            id=scan_id,
+            id=str(uuid.uuid4()),
             targets=targets,
-            findings=[],
+            findings=findings,  # ✅ Use 'findings' here
             started_at=started_at,
-            completed_at=None
+            completed_at=datetime.datetime.utcnow()
         )
         db.add(new_scan)
         db.commit()
+        db.refresh(new_scan)
+        return new_scan
     finally:
-        if close_db:
-            db.close()
+        db.close()
 
-def update_scan_findings(scan_id, findings, db=None):
-    """Update the findings for a scan and mark it complete"""
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
+
+def update_scan_findings(scan_id: str, findings: list):
+    # Open a session with the database
+    db = SessionLocal()
     
-    try:
-        scan = db.query(Scan).filter(Scan.id == scan_id).first()
-        if scan:
-            scan.findings = findings
-            scan.completed_at = datetime.datetime.utcnow()
-            db.commit()
-    finally:
-        if close_db:
-            db.close()
+    # Find the scan record by its scan_id
+    scan = db.query(Scan).filter(Scan.id == scan_id).first()
+    
+    logger.debug(f"Updating scan {scan_id} with findings: {findings}")
+    if not scan:
+        logger.error(f"Scan with ID {scan_id} not found")
+        # If no scan with the given scan_id exists, raise an error or return a failure response
+        db.close()
+        raise Exception(f"Scan with ID {scan_id} not found")
+    
+    # Update the findings field in the scan record
+    scan.findings = findings  # Assuming findings is a list or similar structure
+    logger.debug(f"Findings for scan {scan_id}: {findings}")
+    # Update the completed_at field to the current time if the scan is completed
+    if scan.findings:  # Assuming findings is a list or similar structure
+        scan.completed_at = datetime.datetime.utcnow()
+    else:
+        scan.completed_at = None    
+    # Commit the changes to the database
+    db.commit()
+    db.refresh(scan)  # Refresh the scan object to get the updated data
+    
+    # Close the session
+    db.close()
+    
+    return scan  # Return the updated scan record
 
 def get_scan(scan_id, db=None):
     """Get details for a single scan"""
@@ -160,6 +178,7 @@ def save_agent_report(hostname, packages, db=None):
     finally:
         if close_db:
             db.close()
+
 
 # Initialize database on import
 init_db()

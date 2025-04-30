@@ -1,3 +1,4 @@
+# scanners/nmap_runner.py
 import subprocess
 import re
 import ipaddress
@@ -39,7 +40,7 @@ class NmapRunner:
             cmd.extend(options)
         else:
             # Default options if none specified
-            cmd.extend(["-sV", "--script=vuln"])  # Version detection and vulnerability scanning
+            cmd.extend(["-sV", "--script nmap-vulners/"])  # Version detection and vulnerability scanning
             
         # Add targets
         cmd.append(target_str)

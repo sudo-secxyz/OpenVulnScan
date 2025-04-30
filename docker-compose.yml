@@ -1,14 +1,37 @@
-#version: "3.9"
+version: '3.9'
+
 services:
-  vulnmgmt:
-    build: .
-    container_name: openvulnscan
+  web:
+    build:
+      context: .
+    container_name: openvulnscan-web
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
     ports:
       - "8000:8000"
-    volumes:
-      - ./data:/app/data
-      - ./templates:/app/templates
-      - ./static:/app/static
     environment:
-      - PYTHONUNBUFFERED=1
-    restart: unless-stopped
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - worker
+
+  redis:
+    image: redis:7
+    container_name: openvulnscan-redis
+    ports:
+      - "6379:6379"
+
+  worker:
+    build:
+      context: .
+    container_name: openvulnscan-worker
+    command: celery -A celery_app worker --loglevel=info
+    volumes:
+      - .:/app
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis

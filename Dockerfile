@@ -18,6 +18,7 @@ RUN mkdir -p data templates static
 # Create log directory with appropriate permissions
 RUN mkdir -p /var/log && chmod 777 /var/log
 RUN chmod -R 777 /app
+ENV PYTHONPATH=/app
 
 # Expose port and run app
 EXPOSE 8000

@@ -4,19 +4,26 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 import os
+import datetime
 
+from utils.background import handle_scan
 from database.base import Base
 from database.db_manager import engine, get_all_scans, get_scan as gs, SessionLocal, get_db
-from models.schemas import ScanRequest, ScanResult
+
+from models.schemas import ScanRequest, ScanResult, ScanTaskResponse
 from models.users import User
 from models.agent_report import AgentReport
 from models.auth import BasicAuthBackend, BasicUser
+from models.scan import Scan
+from models.agent_report import Package, CVE
 from services.scan_service import start_scan_task
 from utils.report_generator import generate_scan_report
 from config import TEMPLATES_DIR, STATIC_DIR, initialize_directories, setup_logging
 from utils.settings import router as settings_router
 from utils.agent_router import router as AgentRouter
 from passlib.hash import bcrypt
+from uuid import uuid4
+
 from itsdangerous import URLSafeSerializer
 # Auth Routers
 from auth.google import router as google_auth
@@ -59,7 +66,18 @@ def get_db():
         yield db
     finally:
         db.close()
-
+def create_scan_record(db: Session, scan_id: str, targets: list[str], status: str, scheduled_for: datetime.datetime | None):
+    new_scan = Scan(
+        id=scan_id,
+        targets=targets,  # Keep as list for JSON column
+        status=status,
+        started_at=datetime.datetime.utcnow(),
+        scheduled_for=scheduled_for
+    )
+    db.add(new_scan)
+    db.commit()
+    db.refresh(new_scan)
+    return new_scan
 
 
 # Startup: create admin user
@@ -95,12 +113,38 @@ def read_root(request: Request, user: BasicUser = Depends(get_current_user)):
     scans = get_all_scans()
     return templates.TemplateResponse("index.html", {"request": request, "scans": scans, "current_user": user})
 
-@protected_router.post("/scan", response_model=ScanResult)
-def start_scan(req: ScanRequest, background_tasks: BackgroundTasks, user: BasicUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    logger.info(f"User {user.email} starting scan for: {req.targets}")
-    result = start_scan_task(req, background_tasks)
-    logger.info(f"Scan initiated with ID: {result.id}")
-    return result
+from utils.tasks import run_scan, schedule_scan  # You’ll create `schedule_scan`
+
+@app.post("/scan", response_model=ScanTaskResponse)
+async def create_scan(scan_request: ScanRequest, db: Session = Depends(get_db)):
+    scan_id = str(uuid4())
+    status = "scheduled" if scan_request.scheduled_for else "running"
+
+    # Create a DB record first
+    create_scan_record(
+        db=db,
+        scan_id=scan_id,
+        targets=scan_request.targets,
+        status=status,
+        scheduled_for=scan_request.scheduled_for
+    )
+
+    task_args = {"scan_id": scan_id, "targets": scan_request.targets}
+
+    if scan_request.scheduled_for:
+        schedule_scan.apply_async(args=[task_args], eta=scan_request.scheduled_for)
+    else:
+        run_scan.apply_async(args=[task_args])
+
+    return ScanTaskResponse(
+        id=scan_id,
+        targets=scan_request.targets,
+        findings=[],
+        started_at=datetime.datetime.utcnow().isoformat(),
+        scheduled_for=scan_request.scheduled_for,
+        status=status
+    )
+
 
 @protected_router.get("/scan/{scan_id}", response_class=HTMLResponse)
 def get_scan(scan_id: str, request: Request, db: Session = Depends(get_db), user: BasicUser = Depends(get_current_user)):
@@ -126,7 +170,7 @@ def get_agent_report(agent_id: int, db: Session = Depends(get_db), user: BasicUs
 
     return JSONResponse(content={
         "hostname": report.hostname,
-        "timestamp": str(report.timestamp),
+        "timestamp": str(report.reported_at),
         "packages": [
             {
                 "name": pkg.name,
