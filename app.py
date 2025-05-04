@@ -1,26 +1,36 @@
-from fastapi import FastAPI, BackgroundTasks, Depends, HTTPException, Request, status, APIRouter
+# app.py
+from fastapi import FastAPI, BackgroundTasks, Depends, HTTPException, Request, status, APIRouter, Form
 from fastapi.responses import HTMLResponse, FileResponse, Response, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 import os
+import json
 import datetime
+import models
 
 from utils.background import handle_scan
 from database.base import Base
-from database.db_manager import engine, get_all_scans, get_scan as gs, SessionLocal, get_db
-
+from database.db_manager import engine, SessionLocal, get_db
+from database.ops import get_all_scans, get_scan as gs, init_db
+from models.finding import Finding
 from models.schemas import ScanRequest, ScanResult, ScanTaskResponse
 from models.users import User
 from models.agent_report import AgentReport
 from models.auth import BasicAuthBackend, BasicUser
 from models.scan import Scan
-from models.agent_report import Package, CVE
+from models.asset import Asset
+from models.scheduled_scan import ScheduledScan
+from models.agent_report import AgentReport
+from models.package import Package
+from models.cve import CVE
 from services.scan_service import start_scan_task
 from utils.report_generator import generate_scan_report
 from config import TEMPLATES_DIR, STATIC_DIR, initialize_directories, setup_logging
 from utils.settings import router as settings_router
 from utils.agent_router import router as AgentRouter
+from routes.schedule import router as schedule_router
+from routes.assets import router as assets_router
 from passlib.hash import bcrypt
 from uuid import uuid4
 
@@ -37,6 +47,7 @@ from starlette.middleware.authentication import AuthenticationMiddleware, Authen
 # Logging
 logger = setup_logging()
 
+init_db()
 # Session management
 serializer = cookie_signer
 
@@ -58,6 +69,8 @@ app.include_router(google_auth)
 app.include_router(local_auth)
 app.include_router(settings_router)
 app.include_router(AgentRouter)
+app.include_router(schedule_router)
+app.include_router(assets_router)
 
 # Dependency to get the database session
 def get_db():
@@ -81,6 +94,9 @@ def create_scan_record(db: Session, scan_id: str, targets: list[str], status: st
 
 
 # Startup: create admin user
+@app.get("/favicon.ico")
+async def favicon():
+    return RedirectResponse(url="/static/favicon.ico")
 @app.on_event("startup")
 def create_default_admin():
     Base.metadata.create_all(bind=engine)
@@ -135,31 +151,73 @@ async def create_scan(scan_request: ScanRequest, db: Session = Depends(get_db)):
         schedule_scan.apply_async(args=[task_args], eta=scan_request.scheduled_for)
     else:
         run_scan.apply_async(args=[task_args])
-
+    logger.info(f"Queuing task for scan {scan_id} with targets: {scan_request.targets}")
+    # Return the response with findings
     return ScanTaskResponse(
         id=scan_id,
         targets=scan_request.targets,
-        findings=[],
+        findings=[],  # You can initially set this to an empty list, or populate it after scan completion
         started_at=datetime.datetime.utcnow().isoformat(),
         scheduled_for=scan_request.scheduled_for,
         status=status
     )
 
-
 @protected_router.get("/scan/{scan_id}", response_class=HTMLResponse)
 def get_scan(scan_id: str, request: Request, db: Session = Depends(get_db), user: BasicUser = Depends(get_current_user)):
     logger.info(f"User {user.email} viewing scan results for scan ID: {scan_id}")
-    scan_data = gs(scan_id, db=db)
+
+    # Ensure scan_id is the correct type (string)
+    if isinstance(scan_id, dict):
+        scan_id = str(scan_id)  # Ensure it's treated as a string if it somehow ends up as a dict
+
+    # Eager-load findings using joinedload
+    scan_data = db.query(Scan).options(
+        joinedload(Scan.findings).joinedload(Finding.cves)  # Eager load the CVEs as well
+    ).filter(Scan.id == scan_id).first()
+
     if not scan_data:
         return HTMLResponse(f"<h1>Scan ID {scan_id} not found</h1>", status_code=404)
-    return templates.TemplateResponse("scan_result.html", {"request": request, "scan_id": scan_id, **scan_data, "current_user": user})
+
+    return templates.TemplateResponse("scan_result.html", {
+        "request": request,
+        "scan_id": scan_id,
+        "scan": scan_data,
+        "current_user": user
+    })
 
 @protected_router.get("/scan/{scan_id}/pdf", response_class=FileResponse)
 def get_scan_pdf(scan_id: str, user: BasicUser = Depends(get_current_user)):
     logger.info(f"User {user.email} generating PDF report for scan ID: {scan_id}")
-    pdf_file_path = generate_scan_report(scan_id)
+    
+    # Fetch the scan data and related findings (optimized for report generation)
+    db: Session = SessionLocal()
+    scan_data = db.query(Scan).options(
+        joinedload(Scan.findings).joinedload(Finding.cves)  # Eager load CVEs as well
+    ).filter(Scan.id == scan_id).first()
+
+    if not scan_data:
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    # Extract relevant scan information
+    scan_info = {
+    "scan_id": scan_data.id,
+    "targets": scan_data.targets,
+    "findings": [
+        {
+            "finding_id": finding.id,
+            "description": json.loads(finding.raw_data).get("description", "No description available"),  # Extract description from raw_data
+            "cves": [{"id": cve.cve_id, "summary": cve.summary} for cve in finding.cves]
+        }
+        for finding in scan_data.findings
+    ]
+}
+    
+    # Now pass this data to generate the report
+    pdf_file_path = generate_scan_report(scan_info)
+
     if not os.path.exists(pdf_file_path):
         raise HTTPException(status_code=404, detail="PDF report not found")
+    
     return FileResponse(pdf_file_path, filename=f"scan_{scan_id}_report.pdf", media_type="application/pdf")
 
 @protected_router.get("/api/report/{agent_id}")

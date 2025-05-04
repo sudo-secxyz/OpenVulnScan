@@ -1,4 +1,6 @@
+# celery_app.py
 from celery import Celery, shared_task
+from celery.schedules import crontab
 import os
 
 __all__ = ("celery_app", "shared_task")
@@ -16,5 +18,12 @@ celery_app.conf.update(
     timezone='UTC',
 )
 
-# Make sure it discovers tasks
+
+celery_app.conf.beat_schedule = {
+    'run-scheduled-scans-every-minute': {
+        'task': 'utils.tasks.process_scheduled_scans',
+        'schedule': crontab(minute='*'),
+    },
+}
+
 

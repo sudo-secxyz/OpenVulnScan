@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Schedule a{% endblock %}
+
+{% block content %}
+<body>
+    <h1>Schedule a Scan</h1>
+
+    <form method="post" action="/schedule-scan">
+        <label for="target_ip">Target IP:</label>
+        <input type="text" name="target_ip" required><br><br>
+
+        <label for="start_datetime">Start Date & Time:</label>
+        <input type="datetime-local" name="start_datetime" required><br><br>
+
+        <label>Repeat on Days:</label><br>
+        <label class="day-checkbox"><input type="checkbox" name="days" value="mon"> Monday</label>
+        <label class="day-checkbox"><input type="checkbox" name="days" value="tue"> Tuesday</label>
+        <label class="day-checkbox"><input type="checkbox" name="days" value="wed"> Wednesday</label>
+        <label class="day-checkbox"><input type="checkbox" name="days" value="thu"> Thursday</label>
+        <label class="day-checkbox"><input type="checkbox" name="days" value="fri"> Friday</label>
+        <label class="day-checkbox"><input type="checkbox" name="days" value="sat"> Saturday</label>
+        <label class="day-checkbox"><input type="checkbox" name="days" value="sun"> Sunday</label><br><br>
+
+        <button type="submit">Schedule</button>
+    </form>
+
+    <h2>Existing Scheduled Scans</h2>
+    <ul>
+        {% for scan in scans %}
+            <li>
+                {{ scan.target_ip }} -
+                Starts: {{ scan.start_datetime }} -
+                Days: {{ scan.days or 'One-time' }}
+                <form method="post" action="/delete-scan/{{ scan.id }}" style="display:inline;">
+                    <button type="submit" onclick="return confirm('Delete this scan?')">Delete</button>
+                </form>
+                <form method="get" action="/edit-scan/{{ scan.id }}" style="display:inline;">
+                    <button type="submit">Edit</button>
+                </form>
+            </li>
+        {% endfor %}
+    </ul>
+</body>
+
+{% endblock %}

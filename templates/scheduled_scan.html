@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<form method="post" action="/schedule-scan">
+    <label>Target:</label><input type="text" name="target"><br>
+    <label>Scan Profile:</label><input type="text" name="scan_profile"><br>
+    <label>Schedule Type:</label>
+    <select name="schedule_type">
+      <option value="once">Once</option>
+      <option value="daily">Daily</option>
+      <option value="weekly">Weekly</option>
+    </select><br>
+    <label>Start Time:</label><input type="datetime-local" name="start_time"><br>
+    <input type="submit" value="Schedule Scan">
+  </form>
+  { end block %}
+ 

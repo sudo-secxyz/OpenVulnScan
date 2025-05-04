@@ -1,30 +1,37 @@
 {% extends "base.html" %}
 {% block content %}
-<body>
-    <h1>Scan Results</h1>
-    <h2>Scan ID: {{ scan_id }}</h2>
-    <p><strong>Started at:</strong> {{ started_at }}</p>
-    <p><strong>Completed at:</strong> {{ completed_at or 'In progress' }}</p>
-    
-    <h3>Targets:</h3>
-    <ul>
-        {% for target in targets %}
+<h1>Scan Results</h1>
+<h2>Scan ID: {{ scan_id }}</h2>
+<p><strong>Started at:</strong> {{ started_at }}</p>
+<p><strong>Completed at:</strong> {{ completed_at or 'In progress' }}</p>
+
+<h3>Targets:</h3>
+<ul>
+    {% for target in targets %}
         <li>{{ target }}</li>
-        {% endfor %}
-    </ul>
+    {% endfor %}
+</ul>
+
+<h4>Findings:</h4>
+<ul>
+    {% if scan.findings %}
+    {% for finding in scan.findings %}
+    <h3>{{ finding.hostname }} - {{ finding.ip_address }}</h3>
+    <p>{{ finding.raw_data }}</p>
     
-    <h3>Findings:</h3>
-    {% if findings %}
-    <ul>
-        {% for finding in findings %}
-        <li>{{ finding }}</li>
-        {% endfor %}
-    </ul>
+    {% for cve in finding.cves %}
+        <div>
+            <p><strong>CVE ID: </strong>{{ cve.cve_id }}</p>
+            <p><strong>Description: </strong>{{ cve.summary }}</p>
+        </div>
+    {% endfor %}
+    {% endfor %}
+
     {% else %}
-    <p>No findings recorded yet.</p>
+        <li>No findings</li>
     {% endif %}
-    
-    <p><a href="/scan/{{ scan_id }}/pdf">Download PDF Report</a></p>
-    <p><a href="/">Back to Scan History</a></p>
-</body>
-    {% endblock %}
+</ul>
+
+<p><a href="/scan/{{ scan_id }}/pdf">Download PDF Report</a></p>
+<p><a href="/">Back to Scan History</a></p>
+{% endblock %}

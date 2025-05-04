@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Scan History{% endblock %}
+{% block content %}
+<h2>Scan History</h2>
+<table>
+    <tr><th>Target IP</th><th>Completed</th><th>Status</th><th>Details</th></tr>
+    {% for result in results %}
+        <tr>
+            <td>{{ result.target_ip }}</td>
+            <td>{{ result.completed_at }}</td>
+            <td>{{ result.status }}</td>
+            <td><a href="/scan/{{ result.id }}">View</a></td>
+        </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}

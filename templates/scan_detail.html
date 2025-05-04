@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Scan Details for {{ result.target_ip }}</h2>
+<p><strong>Status:</strong> {{ result.status }}</p>
+<p><strong>Completed At:</strong> {{ result.completed_at }}</p>
+<p><strong>Raw Output:</strong></p>
+<pre>{{ result.result_data }}</pre>
+<a href="/scans">Back to All Scans</a>
+{% endblock %} 

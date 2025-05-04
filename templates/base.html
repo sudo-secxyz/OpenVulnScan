@@ -17,9 +17,13 @@
     <h1 class="text-2xl font-bold text-indigo-600">OpenVulnScan</h1>
     <nav class="space-x-4 flex items-center">
       <a href="/" class="text-gray-700 hover:text-indigo-600 font-medium">Home</a>
+      <a href="/assets" class="text-gray-700 hover:text-indigo-600 font-medium">Asset History</a>
+      {% if current_user %}
       <a href="/agent/reports" class="text-gray-700 hover:text-indigo-600 font-medium">Agent Reports</a>
       <a href="/dashboard" class="text-gray-700 hover:text-indigo-600 font-medium">Vuln Dashboard</a>
-      {% if current_user %}
+      <a href="/schedule-scan" class="text-gray-700 hover:text-indigo-600 font-medium">Schedule Scan</a>
+      <a  href="/scans" class="text-gray-700 hover:text-indigo-600 font-medium">Scan History</a>
+      
   <div x-data="{ open: false }" class="relative inline-block text-left">
     <button @click="open = !open" class="flex items-center space-x-2 hover:text-indigo-600 focus:outline-none">
       <span class="font-medium">{{ current_user.email }}</span>

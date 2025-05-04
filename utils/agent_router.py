@@ -6,7 +6,9 @@ from sqlalchemy import select, func
 from datetime import datetime
 from models.schemas import ScanRequest, ScanTaskResponse
 from database.db_manager import get_db
-from models.agent_report import AgentReport, Package, CVE
+from models.agent_report import AgentReport
+from models.package import Package
+from models.cve import CVE
 from models.users import User
 from utils import cve_checker
 from fastapi.templating import Jinja2Templates

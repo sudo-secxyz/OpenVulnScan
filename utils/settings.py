@@ -6,7 +6,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 from database.db_manager import get_db
 from models.users import User
-from models.agent_report import Package, CVE
+from models.package import Package
+from models.cve import CVE
+from models.agent_report import AgentReport
 from utils.agent_router import AgentReport
 from passlib.context import CryptContext
 from itsdangerous import URLSafeSerializer, BadSignature
@@ -14,6 +16,7 @@ from starlette.status import HTTP_303_SEE_OTHER
 from auth.dependencies import require_authentication , get_current_user, cookie_signer
 import httpx
 from utils import config  
+from utils.get_system_time import get_system_timezone
 import logging
 
 
@@ -162,3 +165,6 @@ def dashboard(request: Request, db: Session = Depends(get_db), user: User = Depe
         "agents": agents,
         "current_user": user
     })
+@router.get("/settings/timezone")
+def get_timezone():
+    return {"timezone": get_system_timezone()}

@@ -1,6 +1,7 @@
 # models/auth.py
 from starlette.authentication import AuthenticationBackend, AuthCredentials, UnauthenticatedUser
 from itsdangerous import URLSafeSerializer, BadSignature
+from database.base import Base
 
 class BasicUser:
     def __init__(self, id: int, email: str, role: str):

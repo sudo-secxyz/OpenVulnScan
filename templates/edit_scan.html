@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+<form method="post" action="/edit-scan/{{ scan.id }}">
+    <label for="target_ip">Target IP:</label>
+    <input type="text" name="target_ip" value="{{ scan.target_ip }}" required><br><br>
+
+    <label for="start_datetime">Start Date & Time:</label>
+    <input type="datetime-local" name="start_datetime" value="{{ scan.start_datetime|replace(' ', 'T') }}" required><br><br>
+
+    <label>Repeat on Days:</label><br>
+    {% set days = scan.days.split(',') if scan.days else [] %}
+    {% for day in ['mon','tue','wed','thu','fri','sat','sun'] %}
+        <label><input type="checkbox" name="days" value="{{ day }}" {% if day in days %}checked{% endif %}> {{ day|capitalize }}</label>
+    {% endfor %}
+    <br><br>
+    <button type="submit">Update</button>
+</form>
+    
+    {% endblock %}
