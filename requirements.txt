@@ -12,7 +12,6 @@ sqlalchemy
 aiosqlite
 httpx
 passlib
-bcryypt
 itsdangerous
 starlette
 celery[redis]
