@@ -15,6 +15,7 @@ COPY . .
 
 # Create necessary dirs
 RUN mkdir -p data templates static
+RUN mkdir -p /app/data
 # Create log directory with appropriate permissions
 RUN mkdir -p /var/log && chmod 777 /var/log
 RUN chmod -R 777 /app

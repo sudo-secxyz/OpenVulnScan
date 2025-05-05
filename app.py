@@ -43,7 +43,9 @@ from auth.dependencies import require_authentication, COOKIE_NAME, get_current_u
 # Middleware
 from starlette.middleware import Middleware
 from starlette.middleware.authentication import AuthenticationMiddleware, AuthenticationBackend, AuthCredentials
+from config import initialize_directories
 
+initialize_directories()
 # Logging
 logger = setup_logging()
 
