@@ -1,5 +1,5 @@
 # models/scan.py
-from sqlalchemy import Column, String, JSON, DateTime, Text
+from sqlalchemy import Column, String, JSON, DateTime, Text, ARRAY
 from sqlalchemy.orm import relationship
 from database.base import Base
 import datetime
@@ -27,4 +27,4 @@ class Scan(Base):
 
     # relationships
     scan_targets = relationship("ScanTarget", back_populates="scan", cascade="all, delete-orphan")
-    findings = relationship("Finding", back_populates="scan", cascade="all, delete-orphan")
+    findings = relationship("Finding", cascade="all, delete-orphan")  # Removed backref

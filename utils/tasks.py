@@ -8,9 +8,12 @@ from services.scan_service import start_scan_task, run_scan as rs
 from database.ops import insert_scan , SessionLocal 
 from models.scheduled_scan import ScheduledScan
 from models.scan import Scan
+from models.finding import Finding
 import pytz
 from utils.get_system_time import get_system_timezone
 from models.schemas import ScanRequest
+import json
+
 logger = setup_logging()
 
 @shared_task
@@ -26,17 +29,40 @@ def run_scan(scan_data: dict):
         # Log findings
         logger.info(f"Findings for scan {scan_id}: {findings}")
 
-        # Return findings
+        # Save findings to the database
+        db = SessionLocal()
+        try:
+            for finding in findings:
+                # Flatten vulnerabilities into a single string for easier access
+                vulnerabilities = finding["raw_data"].get("vulnerabilities", [])
+                flattened_vulnerabilities = [
+                    vuln["description"] for vuln in vulnerabilities if "description" in vuln
+                ]
+
+                db_finding = Finding(
+                    scan_id=scan_id,
+                    ip_address=finding["ip_address"],
+                    hostname=finding["hostname"],
+                    raw_data=json.dumps(finding["raw_data"]),  # Save raw_data as JSON
+                    description=", ".join(flattened_vulnerabilities)  # Save descriptions as a single string
+                )
+                db.add(db_finding)
+            db.commit()
+        finally:
+            db.close()
+
+        logger.info(f"Findings for scan {scan_id} saved successfully")
         return findings
     except Exception as e:
         logger.error(f"Error in run_scan: {e}", exc_info=True)
-        return None
-
 
 
 @shared_task
 def schedule_scan(scan_data: dict):
-    return  start_scan_task(scan_data)
+    scan_id = scan_data['scan_id']
+    targets = scan_data['targets']
+    insert_scan(scan_id, targets, datetime.now(pytz.timezone(get_system_timezone())))
+    run_scan.delay({"scan_id": scan_id, "targets": targets})
 
 
 @shared_task

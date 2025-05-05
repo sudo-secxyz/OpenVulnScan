@@ -61,18 +61,32 @@ def run_scan(scan_id: str, targets: list):
 
             if db_scan:
                 orm_findings = []
+                # Avoid duplicating identical raw_data entries for the same IP
+                unique_keys = set()
+
                 for finding in cleaned_findings:
-                    for vuln in finding["vulnerabilities"]:
-                        orm_findings.append(Finding(
+                    key = f"{finding['ip']}_{json.dumps(finding, sort_keys=True)}"
+                    if key in unique_keys:
+                        continue
+                    unique_keys.add(key)
+
+                    orm_findings.append(Finding(
                         scan_id=scan_id,
-                        ip_address=finding["ip"],  # Use 'ip_address' here instead of 'ip'
+                        ip_address=finding["ip"],
                         hostname=finding["hostname"],
-                        raw_data=json.dumps(finding),  # Optionally store raw data if necessary
-                        created_at=datetime.now(tz) # Or use the scan time
+                        raw_data=json.dumps(finding),
+                        created_at=datetime.now(tz)
                     ))
 
-                db_scan.findings = orm_findings
+                    update_asset(
+                        ip_address=finding["ip"],
+                        hostname=finding["hostname"],
+                        vulnerabilities=finding["vulnerabilities"]
+                    )
+
+                db.add_all(orm_findings)
                 db.commit()
+
 
 
         

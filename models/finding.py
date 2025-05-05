@@ -13,11 +13,13 @@ class Finding(Base):
     ip_address = Column(String, nullable=False)
     hostname = Column(String, nullable=True)
     raw_data = Column(Text, nullable=True)
-    description = Column(Text, nullable=True)  # Add description field
+    description = Column(Text)  # Add description field
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    severity = Column(String, nullable=True)  # e.g., "low", "medium", "high"
     
     # Use string-based reference to avoid circular import
-    cves = relationship(CVE, back_populates="finding", cascade="all, delete-orphan")  
+    cves = relationship("CVE", back_populates="finding", cascade="all, delete-orphan")
+
     scan = relationship("Scan", back_populates="findings")
     __table_args__ = (
         Index('ix_findings_scan_id', 'scan_id'),

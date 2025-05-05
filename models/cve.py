@@ -11,7 +11,7 @@ class CVE(Base):
 
     cve_id = Column(String, nullable=False)
     summary = Column(Text, nullable=True)
-    finding_id = Column(Integer, ForeignKey('findings.id'), nullable=True)
+    finding_id = Column(Integer, ForeignKey('findings.id'))
     severity = Column(String, nullable=True)  # e.g., "low", "medium", "high"
 
     package_id = Column(Integer, ForeignKey("packages.id"))  # This is correct

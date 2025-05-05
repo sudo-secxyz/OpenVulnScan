@@ -188,38 +188,19 @@ def get_scan(scan_id: str, request: Request, db: Session = Depends(get_db), user
     })
 
 @protected_router.get("/scan/{scan_id}/pdf", response_class=FileResponse)
-def get_scan_pdf(scan_id: str, user: BasicUser = Depends(get_current_user)):
-    logger.info(f"User {user.email} generating PDF report for scan ID: {scan_id}")
-    
-    # Fetch the scan data and related findings (optimized for report generation)
-    db: Session = SessionLocal()
-    scan_data = db.query(Scan).options(
-        joinedload(Scan.findings).joinedload(Finding.cves)  # Eager load CVEs as well
+def get_scan_pdf(scan_id: str, db: Session = Depends(get_db)):
+    scan = db.query(Scan).options(
+        joinedload(Scan.findings).joinedload(Finding.cves)
     ).filter(Scan.id == scan_id).first()
 
-    if not scan_data:
+    if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
 
-    # Extract relevant scan information
-    scan_info = {
-    "scan_id": scan_data.id,
-    "targets": scan_data.targets,
-    "findings": [
-        {
-            "finding_id": finding.id,
-            "description": json.loads(finding.raw_data).get("description", "No description available"),  # Extract description from raw_data
-            "cves": [{"id": cve.cve_id, "summary": cve.summary} for cve in finding.cves]
-        }
-        for finding in scan_data.findings
-    ]
-}
-    
-    # Now pass this data to generate the report
-    pdf_file_path = generate_scan_report(scan_info)
+    pdf_file_path = generate_scan_report(scan)
 
-    if not os.path.exists(pdf_file_path):
+    if not pdf_file_path or not os.path.exists(pdf_file_path):
         raise HTTPException(status_code=404, detail="PDF report not found")
-    
+
     return FileResponse(pdf_file_path, filename=f"scan_{scan_id}_report.pdf", media_type="application/pdf")
 
 @protected_router.get("/api/report/{agent_id}")

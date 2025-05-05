@@ -1,9 +1,57 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Scan Details for {{ result.target_ip }}</h2>
+<h2>Scan Details for {{ result.targets | join(', ') }}</h2>
 <p><strong>Status:</strong> {{ result.status }}</p>
+<p><strong>Started At:</strong> {{ result.started_at }}</p>
 <p><strong>Completed At:</strong> {{ result.completed_at }}</p>
-<p><strong>Raw Output:</strong></p>
-<pre>{{ result.result_data }}</pre>
-<a href="/scans">Back to All Scans</a>
-{% endblock %} 
+
+<h3>Findings</h3>
+<table class="table-auto border-collapse border border-gray-300 w-full">
+    <thead class="bg-gray-100">
+        <tr>
+            <th class="border px-4 py-2">IP Address</th>
+            <th class="border px-4 py-2">Hostname</th>
+            <th class="border px-4 py-2">Description</th>
+            <th class="border px-4 py-2">Severity</th>
+            <th class="border px-4 py-2">CVE ID</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for finding in result.findings %}
+        <tr>
+            <td class="border px-4 py-2">{{ finding.ip_address }}</td>
+            <td class="border px-4 py-2">{{ finding.hostname }}</td>
+            <td class="border px-4 py-2">
+                {% if finding.raw_data.vulnerabilities %}
+                    <ul>
+                        {% for vuln in finding.raw_data.vulnerabilities %}
+                            <li>{{ vuln.description }}</li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    N/A
+                {% endif %}
+            </td>
+            <td class="border px-4 py-2">
+                {% if finding.raw_data.vulnerabilities %}
+                    High  <!-- Example: You can customize this based on your logic -->
+                {% else %}
+                    N/A
+                {% endif %}
+            </td>
+            <td class="border px-4 py-2">
+                {% if finding.raw_data.vulnerabilities %}
+                    <ul>
+                        {% for vuln in finding.raw_data.vulnerabilities %}
+                            <li>{{ vuln.id }}</li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    N/A
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
