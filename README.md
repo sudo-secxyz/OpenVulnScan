@@ -64,6 +64,9 @@ curl -X POST http://localhost:8000/scan \
 ```bash
 curl -O "http://localhost:8000/agent/download?openvulnscan_api=http://localhost:8000/agent/report"
 ```
+```bash
+mv download agent.py
+```
 
 ### 📤 Submit Agent Package Report
 
