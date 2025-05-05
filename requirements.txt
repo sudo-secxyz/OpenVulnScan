@@ -18,3 +18,4 @@ celery[redis]
 redis
 pytz
 tzlocal
+futures

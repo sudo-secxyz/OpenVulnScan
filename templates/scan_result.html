@@ -1,36 +1,51 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Scan Results</h1>
-<h2>Scan ID: {{ scan_id }}</h2>
-<p><strong>Started at:</strong> {{ started_at }}</p>
-<p><strong>Completed at:</strong> {{ completed_at or 'In progress' }}</p>
+<h2>Scan Results for {{ scan.targets | join(', ') }}</h2>
+<p><strong>Status:</strong> {{ scan.status }}</p>
+<p><strong>Started At:</strong> {{ scan.started_at }}</p>
+<p><strong>Completed At:</strong> {{ scan.completed_at }}</p>
 
-<h3>Targets:</h3>
-<ul>
-    {% for target in targets %}
-        <li>{{ target }}</li>
-    {% endfor %}
-</ul>
-
-<h4>Findings:</h4>
-<ul>
-    {% if scan.findings %}
-    {% for finding in scan.findings %}
-    <h3>{{ finding.hostname }} - {{ finding.ip_address }}</h3>
-    <p>{{ finding.raw_data }}</p>
-    
-    {% for cve in finding.cves %}
-        <div>
-            <p><strong>CVE ID: </strong>{{ cve.cve_id }}</p>
-            <p><strong>Description: </strong>{{ cve.summary }}</p>
-        </div>
-    {% endfor %}
-    {% endfor %}
-
-    {% else %}
-        <li>No findings</li>
-    {% endif %}
-</ul>
+<h3>Findings</h3>
+<table class="table-auto border-collapse border border-gray-300 w-full">
+    <thead class="bg-gray-100">
+        <tr>
+            <th class="border px-4 py-2">IP Address</th>
+            <th class="border px-4 py-2">Hostname</th>
+            <th class="border px-4 py-2">Open Ports</th>
+            <th class="border px-4 py-2">Vulnerabilities</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for finding in scan.raw_data %}
+        <tr>
+            <td class="border px-4 py-2">{{ finding.ip }}</td>
+            <td class="border px-4 py-2">{{ finding.hostname }}</td>
+            <td class="border px-4 py-2">
+                {% if finding.open_ports %}
+                    <ul>
+                        {% for port in finding.open_ports %}
+                            <li>{{ port.port }}/{{ port.protocol }} - {{ port.service }}</li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    No open ports
+                {% endif %}
+            </td>
+            <td class="border px-4 py-2">
+                {% if finding.vulnerabilities %}
+                    <ul>
+                        {% for vuln in finding.vulnerabilities %}
+                            <li>{{ vuln.id }}: {{ vuln.description }}</li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    No vulnerabilities
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
 
 <p><a href="/scan/{{ scan_id }}/pdf">Download PDF Report</a></p>
 <p><a href="/">Back to Scan History</a></p>

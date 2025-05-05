@@ -16,46 +16,58 @@ import json
 
 logger = setup_logging()
 
+from concurrent.futures import ThreadPoolExecutor
+
+def run_parallel_scans(scan_id, targets):
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        results = list(executor.map(lambda target: rs(scan_id, [target]), targets))
+    # Flatten the results if they are nested lists
+    flattened_results = [item for sublist in results for item in sublist]
+    return flattened_results
+
 @shared_task
 def run_scan(scan_data: dict):
+    scan_id = scan_data['scan_id']
+    targets = scan_data['targets']
+    logger.info(f"Running scan {scan_id} on targets: {targets}")
+
+    # Run scans in parallel
+    findings = run_parallel_scans(scan_id, targets)
+
+    # Flatten findings if they are nested lists
+    if any(isinstance(finding, list) for finding in findings):
+        findings = [item for sublist in findings for item in sublist]
+
+    # Log findings for debugging
+    logger.info(f"Findings for scan {scan_id}: {findings}")
+
+    # Save findings to the database directly in this function
+    db = SessionLocal()
     try:
-        scan_id = scan_data['scan_id']
-        targets = scan_data['targets']
-        logger.info(f"Running scan {scan_id} on targets: {targets}")
+        for finding in findings:
+            logger.info(f"Processing finding: {finding}")  # Log each finding
+            db_finding = Finding(
+                scan_id=scan_id,
+                ip_address=finding["ip"],
+                hostname=finding["hostname"],
+                raw_data=json.dumps(finding),
+                description=", ".join([
+                    vuln["description"] for vuln in finding.get("vulnerabilities", [])
+                ])
+            )
+            db.add(db_finding)
+        db.commit()
 
-        # Run the scan
-        findings = rs(scan_id, targets)  # Call the `run_scan` function from `scan_service.py`
-
-        # Log findings
-        logger.info(f"Findings for scan {scan_id}: {findings}")
-
-        # Save findings to the database
-        db = SessionLocal()
-        try:
-            for finding in findings:
-                # Flatten vulnerabilities into a single string for easier access
-                vulnerabilities = finding["raw_data"].get("vulnerabilities", [])
-                flattened_vulnerabilities = [
-                    vuln["description"] for vuln in vulnerabilities if "description" in vuln
-                ]
-
-                db_finding = Finding(
-                    scan_id=scan_id,
-                    ip_address=finding["ip_address"],
-                    hostname=finding["hostname"],
-                    raw_data=json.dumps(finding["raw_data"]),  # Save raw_data as JSON
-                    description=", ".join(flattened_vulnerabilities)  # Save descriptions as a single string
-                )
-                db.add(db_finding)
+        # Update scan status in the database
+        db_scan = db.query(Scan).filter(Scan.id == scan_id).first()
+        if db_scan:
+            db_scan.status = 'completed'
+            db_scan.completed_at = datetime.now(pytz.timezone(get_system_timezone()))
             db.commit()
-        finally:
-            db.close()
-
-        logger.info(f"Findings for scan {scan_id} saved successfully")
-        return findings
     except Exception as e:
-        logger.error(f"Error in run_scan: {e}", exc_info=True)
-
+        logger.error(f"Error saving findings or updating scan status: {e}", exc_info=True)
+    finally:
+        db.close()
 
 @shared_task
 def schedule_scan(scan_data: dict):

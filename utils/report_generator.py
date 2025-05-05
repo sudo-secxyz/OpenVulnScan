@@ -23,10 +23,6 @@ def generate_scan_report(scan: Scan) -> Optional[str]:
     if not scan:
         return None
 
-    targets_list = scan.targets or []
-    started_at = scan.started_at.isoformat() if scan.started_at else "Unknown"
-    completed_at = scan.completed_at.isoformat() if scan.completed_at else "In progress"
-
     pdf = FPDF()
     pdf.add_page()
     try:
@@ -37,32 +33,30 @@ def generate_scan_report(scan: Scan) -> Optional[str]:
     pdf.set_title(f"Scan Report: {scan.id}")
     pdf.set_author("OpenVulnScan")
 
-    pdf.cell(200, 10, txt=f"Scan Report: {scan.id}", ln=True, align='C')
+    pdf.cell(200, 10, txt=f"Scan Report for {', '.join(scan.targets or [])}", ln=True, align='C')
     pdf.ln(10)
-    pdf.cell(200, 10, txt=f"Targets: {', '.join(targets_list)}", ln=True)
-    pdf.cell(200, 10, txt=f"Started at: {started_at}", ln=True)
-    pdf.cell(200, 10, txt=f"Completed at: {completed_at}", ln=True)
+
+    pdf.cell(200, 10, txt=f"Status: {scan.status}", ln=True)
+    pdf.cell(200, 10, txt=f"Started At: {scan.started_at.isoformat() if scan.started_at else 'Unknown'}", ln=True)
+    pdf.cell(200, 10, txt=f"Completed At: {scan.completed_at.isoformat() if scan.completed_at else 'In Progress'}", ln=True)
     pdf.ln(10)
-    pdf.cell(200, 10, txt="Findings:", ln=True)
 
-    if scan.findings:
-        print(f"Generating report for scan {scan.id}")
-        print(f"Found {len(scan.findings)} findings")
-        for finding in scan.findings:
-            desc = finding.description or 'No description'
-            severity = finding.severity or 'N/A'
-            cve_ids = ', '.join([cve.cve_id for cve in finding.cves]) if finding.cves else 'N/A'
-            summary = f"- {desc} | Severity: {severity} | CVEs: {cve_ids}"
-            pdf.multi_cell(0, 10, txt=summary)
-            print(f"Finding: {finding.description}, CVEs: {[c.cve_id for c in finding.cves]}")
+    # Parse raw_data
+    raw_data = scan.raw_data or []
+    for finding in raw_data:
+        pdf.cell(200, 10, txt=f"IP Address: {finding.get('ip', 'N/A')}", ln=True)
+        pdf.cell(200, 10, txt=f"Hostname: {finding.get('hostname', 'N/A')}", ln=True)
 
-    else:
-        pdf.cell(200, 10, txt="- No findings recorded.", ln=True)
+        pdf.cell(200, 10, txt="Open Ports:", ln=True)
+        for port in finding.get("open_ports", []):
+            pdf.cell(200, 10, txt=f"  - {port['port']}/{port['protocol']} ({port['service']})", ln=True)
 
-    filename = os.path.join(DATA_DIR, f"scan_{scan.id}.pdf")
+        pdf.cell(200, 10, txt="Vulnerabilities:", ln=True)
+        for vuln in finding.get("vulnerabilities", []):
+            pdf.cell(200, 10, txt=f"  - {vuln['id']}: {vuln['description']}", ln=True)
 
-    if os.path.exists(filename):
-        os.remove(filename)
+        pdf.ln(10)
 
+    filename = os.path.join(DATA_DIR, f"scan_{scan.id}_report.pdf")
     pdf.output(filename)
     return filename

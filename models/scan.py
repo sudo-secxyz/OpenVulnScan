@@ -20,11 +20,12 @@ class Scan(Base):
 
     id = Column(String, primary_key=True)
     status = Column(String, default='pending')
-    targets = Column(JSON)  # raw list, e.g., ["192.168.1.1"]
+    targets = Column(JSON)  # List of targets
+    raw_data = Column(JSON, nullable=True)  # Store consolidated scan results
     started_at = Column(DateTime, default=datetime.datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
     scheduled_for = Column(DateTime, nullable=True)
 
     # relationships
     scan_targets = relationship("ScanTarget", back_populates="scan", cascade="all, delete-orphan")
-    findings = relationship("Finding", cascade="all, delete-orphan")  # Removed backref
+    findings = relationship("Finding", back_populates="scan", cascade="all, delete-orphan")

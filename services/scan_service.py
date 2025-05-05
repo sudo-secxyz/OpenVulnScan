@@ -52,52 +52,25 @@ def run_scan(scan_id: str, targets: list):
     try:
         update_scan_status(scan_id, 'queued')
         logger.info(f"Running scan {scan_id} on targets: {targets}")
-        
+
+        # Run the scan
         scanner = NmapRunner(targets)
         findings = scanner.run()
-        if isinstance(findings, list) and findings and isinstance(findings[0], dict):
-            cleaned_findings = clean_findings(findings)
-            db_scan = db.query(Scan).filter(Scan.id == scan_id).first()
 
-            if db_scan:
-                orm_findings = []
-                # Avoid duplicating identical raw_data entries for the same IP
-                unique_keys = set()
+        # Flatten findings if they are nested lists
+        if any(isinstance(finding, list) for finding in findings):
+            findings = [item for sublist in findings for item in sublist]
 
-                for finding in cleaned_findings:
-                    key = f"{finding['ip']}_{json.dumps(finding, sort_keys=True)}"
-                    if key in unique_keys:
-                        continue
-                    unique_keys.add(key)
+        # Save consolidated findings to the Scan model
+        db_scan = db.query(Scan).filter(Scan.id == scan_id).first()
+        if db_scan:
+            db_scan.raw_data = findings  # Save all findings in raw_data
+            db_scan.status = 'completed'
+            db_scan.completed_at = datetime.utcnow()
+            db.commit()
 
-                    orm_findings.append(Finding(
-                        scan_id=scan_id,
-                        ip_address=finding["ip"],
-                        hostname=finding["hostname"],
-                        raw_data=json.dumps(finding),
-                        created_at=datetime.now(tz)
-                    ))
-
-                    update_asset(
-                        ip_address=finding["ip"],
-                        hostname=finding["hostname"],
-                        vulnerabilities=finding["vulnerabilities"]
-                    )
-
-                db.add_all(orm_findings)
-                db.commit()
-
-
-
-        
-
-        logger.debug(f"Scan {scan_id} findings: {json.dumps(cleaned_findings, indent=2)}")
-
-            
-
-        update_scan_status(scan_id, 'completed')
         logger.info(f"Scan {scan_id} completed successfully")
-        return cleaned_findings
+        return findings
     except Exception as e:
         update_scan_status(scan_id, 'failed')
         logger.error(f"Error during scan {scan_id}: {str(e)}", exc_info=True)
