@@ -229,10 +229,33 @@ import subprocess
 import json
 import requests
 import socket
+import platform
 
 OPENVULNSCAN_API = "{base_url}/agent/report"
 
 def get_installed_packages():
+    try:
+        system = platform.system().lower()
+        packages = []
+
+        if system == "linux":
+            distro = platform.linux_distribution()[0].lower()
+            if "debian" in distro or "ubuntu" in distro:
+                packages = get_debian_packages()
+            elif "red hat" in distro or "centos" in distro or "fedora" in distro:
+                packages = get_redhat_packages()
+        elif system == "darwin":
+            packages = get_macos_packages()
+        elif system == "windows":
+            packages = get_windows_packages()
+        else:
+            print(f"Unsupported operating system: {{system}}")
+        return packages
+    except Exception as e:
+        print(f"Error detecting system packages: {{e}}")
+        return []
+
+def get_debian_packages():
     try:
         result = subprocess.run(['dpkg', '-l'], capture_output=True, text=True, check=True)
         packages = []
@@ -242,7 +265,46 @@ def get_installed_packages():
                 packages.append({{"name": parts[1], "version": parts[2]}})
         return packages
     except Exception as e:
-        print(f"Error getting packages: {{e}}")
+        print(f"Error getting Debian/Ubuntu packages: {{e}}")
+        return []
+
+def get_redhat_packages():
+    try:
+        result = subprocess.run(['rpm', '-qa', '--queryformat', '%{{NAME}} %{{VERSION}}\\n'], capture_output=True, text=True, check=True)
+        packages = []
+        for line in result.stdout.split('\\n'):
+            parts = line.split()
+            if len(parts) == 2:
+                packages.append({{"name": parts[0], "version": parts[1]}})
+        return packages
+    except Exception as e:
+        print(f"Error getting Red Hat-based packages: {{e}}")
+        return []
+
+def get_macos_packages():
+    try:
+        result = subprocess.run(['brew', 'list', '--versions'], capture_output=True, text=True, check=True)
+        packages = []
+        for line in result.stdout.split('\\n'):
+            parts = line.split()
+            if len(parts) >= 2:
+                packages.append({{"name": parts[0], "version": parts[1]}})
+        return packages
+    except Exception as e:
+        print(f"Error getting macOS packages: {{e}}")
+        return []
+
+def get_windows_packages():
+    try:
+        result = subprocess.run(['wmic', 'product', 'get', 'name,version'], capture_output=True, text=True, check=True)
+        packages = []
+        for line in result.stdout.split('\\n')[1:]:
+            parts = line.split()
+            if len(parts) >= 2:
+                packages.append({{"name": ' '.join(parts[:-1]), "version": parts[-1]}})
+        return packages
+    except Exception as e:
+        print(f"Error getting Windows packages: {{e}}")
         return []
 
 def send_report(packages):
