@@ -1,12 +1,8 @@
-import subprocess
-import re
+from tzlocal import get_localzone_name
 
 def get_system_timezone() -> str:
     try:
-        output = subprocess.check_output(["timedatectl"], text=True)
-        match = re.search(r'Time zone:\s+([^\s]+)', output)
-        if match:
-            return match.group(1)  # e.g., 'America/Phoenix'
+        return get_localzone_name()  # e.g., 'America/Phoenix'
     except Exception as e:
         print(f"Failed to get system timezone: {e}")
-    return "UTC"  # Fallback
+        return "UTC"

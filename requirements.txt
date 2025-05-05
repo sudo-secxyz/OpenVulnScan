@@ -17,3 +17,4 @@ starlette
 celery[redis]
 redis
 pytz
+tzlocal
