@@ -6,6 +6,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
 import os
 import json
+import html
 import datetime
 import models
 
@@ -176,7 +177,8 @@ def get_scan(scan_id: str, request: Request, db: Session = Depends(get_db), user
     scan_data = db.query(Scan).options(
         joinedload(Scan.findings).joinedload(Finding.cves)  # Eager load the CVEs as well
     ).filter(Scan.id == scan_id).first()
-
+    scan_id =html.escape(scan_id)  # Escape the scan_id for HTML safety
+    
     if not scan_data:
         return HTMLResponse(f"<h1>Scan ID {scan_id} not found</h1>", status_code=404)
 
