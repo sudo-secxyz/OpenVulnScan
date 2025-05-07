@@ -64,7 +64,7 @@ curl -X POST http://localhost:8000/scan \
 ```bash
 curl -O "http://localhost:8000/agent/download?openvulnscan_api=http://localhost:8000/agent/report"
 ```
-openvulnscan_api=<change to the ip address of scanner if not localhost>
+openvulnscan_api=`change to the ip address of scanner if not localhost`
 
 ```bash
 mv download agent.py
