@@ -174,6 +174,10 @@ def scan_detail(scan_id: str, request: Request, user: BasicUser = Depends(get_cu
         if not scan:
             raise HTTPException(status_code=404, detail="Scan not found")
 
+        # Ensure raw_data is initialized
+        if scan.raw_data is None:
+            scan.raw_data = []
+
         # Deserialize raw_data if it's a JSON string
         if isinstance(scan.raw_data, str):
             try:

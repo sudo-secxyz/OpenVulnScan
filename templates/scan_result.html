@@ -19,46 +19,43 @@
             <th class="border px-4 py-2">Hostname</th>
             <th class="border px-4 py-2">Open Ports</th>
             <th class="border px-4 py-2">Vulnerabilities (CVEs)</th>
-
         </tr>
     </thead>
     <tbody>
-{% if scan.raw_data %}
-    {% for finding in scan.raw_data %}
-    <tr class="hover:bg-gray-50">
-        <td class="border px-4 py-2">{{ finding.ip }}</td>
-        <td class="border px-4 py-2">{{ finding.hostname }}</td>
-        <td class="border px-4 py-2">
-            {% if finding.open_ports %}
-                <ul>
-                    {% for port in finding.open_ports %}
-                        <li>{{ port.port }}/{{ port.protocol }} - {{ port.service }}</li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                No open ports
-            {% endif %}
-        </td>
-        <td class="border px-4 py-2">
-            {% if finding.vulnerabilities %}
-                <ul>
-                    {% for vuln in finding.vulnerabilities %}
-                        <li>{{ vuln.id }}: {{ vuln.description }} - {{ vuln.summary }}</li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                No vulnerabilities
-            {% endif %}
-        </td>
-     
-    </tr>
-    {% endfor %}
-{% else %}
-    <tr>
-        <td colspan="5" class="border px-4 py-2 text-center">No findings available</td>
-    </tr>
-{% endif %}
-
+        {% if scan.raw_data %}
+            {% for finding in scan.raw_data %}
+                <tr class="hover:bg-gray-50">
+                    <td class="border px-4 py-2">{{ finding.ip }}</td>
+                    <td class="border px-4 py-2">{{ finding.hostname }}</td>
+                    <td class="border px-4 py-2">
+                        {% if finding.open_ports %}
+                            <ul>
+                                {% for port in finding.open_ports %}
+                                    <li>{{ port.port }}/{{ port.protocol }} - {{ port.service }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            No open ports
+                        {% endif %}
+                    </td>
+                    <td class="border px-4 py-2">
+                        {% if finding.vulnerabilities %}
+                            <ul>
+                                {% for vuln in finding.vulnerabilities %}
+                                    <li>{{ vuln.id }}: {{ vuln.description }} - {{ vuln.summary }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            No vulnerabilities
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="5" class="border px-4 py-2 text-center">No findings available</td>
+            </tr>
+        {% endif %}
     </tbody>
 </table>
 
