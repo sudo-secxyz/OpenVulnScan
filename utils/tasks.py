@@ -10,6 +10,8 @@ from models.scheduled_scan import ScheduledScan
 from models.scan import Scan
 from models.finding import Finding
 import pytz
+from models.cve import CVE
+from services.cve_service import get_cve_description
 from utils.get_system_time import get_system_timezone
 from models.schemas import ScanRequest
 import json
@@ -24,6 +26,61 @@ def run_parallel_scans(scan_id, targets):
     # Flatten the results if they are nested lists
     flattened_results = [item for sublist in results for item in sublist]
     return flattened_results
+
+def process_cves(finding):
+    session = SessionLocal()
+    try:
+        raw_data = json.loads(finding.raw_data)
+        logger.debug(f"Raw data for finding {finding.id}: {raw_data}")
+
+        # Extract CVE IDs from vulnerabilities
+        cve_ids = list({vuln['id'] for vuln in raw_data.get('vulnerabilities', [])})  # Use set to deduplicate
+
+        for cve_id in cve_ids:
+            logger.info(f"Saving CVE {cve_id} for finding {finding.id}")
+            cve_entry = CVE(
+                cve_id=cve_id,
+                finding_id=finding.id,  # Link CVE to the Finding
+                summary=None,  # Placeholder for description
+                severity=None  # Placeholder for severity
+            )
+            session.add(cve_entry)
+
+        session.commit()
+        logger.info(f"Committed {len(cve_ids)} CVEs for finding {finding.id}")
+    except Exception as e:
+        logger.error(f"Error committing CVEs for finding {finding.id}: {e}")
+        session.rollback()
+    finally:
+        session.close()
+
+def enrich_cve_descriptions():
+    session = SessionLocal()
+    try:
+        cves = session.query(CVE).filter(CVE.summary == None).all()
+        logger.info(f"Found {len(cves)} CVEs without descriptions")
+
+        for cve in cves:
+            try:
+                cve_call = str(cve.cve_id).strip()
+                description = get_cve_description(cve_call)
+                if description:
+                    cve.summary = description
+                    session.add(cve)  # Make sure SQLAlchemy knows this object changed
+                    #logger.info(f"Updated description for CVE {cve.cve_id}\n {cve.summary}")
+                else:
+                    logger.warning(f"No description found for CVE {cve.cve_id}")
+            except Exception as e:
+                logger.error(f"Error fetching description for CVE {cve.cve_id}: {e}")
+
+        session.commit()
+    except Exception as e:
+        logger.error(f"Error committing CVE descriptions: {e}")
+        session.rollback()
+    finally:
+        session.close()
+
+
 
 @shared_task
 def run_scan(scan_data: dict):
@@ -56,8 +113,10 @@ def run_scan(scan_data: dict):
                 ])
             )
             db.add(db_finding)
-        db.commit()
+            db.commit()  # Commit after each finding to ensure `db_finding.id` is available
 
+            # Pass the `Finding` model instance to `process_cves`
+            process_cves(db_finding)
         # Update scan status in the database
         db_scan = db.query(Scan).filter(Scan.id == scan_id).first()
         if db_scan:
@@ -68,6 +127,10 @@ def run_scan(scan_data: dict):
         logger.error(f"Error saving findings or updating scan status: {e}", exc_info=True)
     finally:
         db.close()
+
+    # Enrich CVE descriptions after processing CVEs
+    enrich_cve_descriptions()
+
 
 @shared_task
 def schedule_scan(scan_data: dict):

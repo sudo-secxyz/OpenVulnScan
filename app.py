@@ -13,7 +13,7 @@ import models
 from utils.background import handle_scan
 from database.base import Base
 from database.db_manager import engine, SessionLocal, get_db
-from database.ops import get_all_scans, get_scan as gs, init_db
+from database.ops import get_all_scans, get_scan as gs, init_db, get_cve_by_id
 from models.finding import Finding
 from models.schemas import ScanRequest, ScanResult, ScanTaskResponse
 from models.users import User
@@ -165,29 +165,48 @@ async def create_scan(scan_request: ScanRequest, db: Session = Depends(get_db)):
         status=status
     )
 
+
 @protected_router.get("/scan/{scan_id}", response_class=HTMLResponse)
-def get_scan(scan_id: str, request: Request, db: Session = Depends(get_db), user: BasicUser = Depends(get_current_user)):
-    logger.info(f"User {user.email} viewing scan results for scan ID: {scan_id}")
+def scan_detail(scan_id: str, request: Request, user: BasicUser = Depends(get_current_user)):
+    db = SessionLocal()
+    try:
+        scan = db.query(Scan).filter(Scan.id == scan_id).first()
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
 
-    # Ensure scan_id is the correct type (string)
-    if isinstance(scan_id, dict):
-        scan_id = str(scan_id)  # Ensure it's treated as a string if it somehow ends up as a dict
+        # Deserialize raw_data if it's a JSON string
+        if isinstance(scan.raw_data, str):
+            try:
+                scan.raw_data = json.loads(scan.raw_data)
+            except json.JSONDecodeError:
+                logger.error(f"Failed to deserialize raw_data for scan {scan_id}")
+                scan.raw_data = []
 
-    # Eager-load findings using joinedload
-    scan_data = db.query(Scan).options(
-        joinedload(Scan.findings).joinedload(Finding.cves)  # Eager load the CVEs as well
-    ).filter(Scan.id == scan_id).first()
-    scan_id =html.escape(scan_id)  # Escape the scan_id for HTML safety
-    
-    if not scan_data:
-        return HTMLResponse(f"<h1>Scan ID {scan_id} not found</h1>", status_code=404)
+        logger.debug(f"Processed raw_data for scan {scan_id}: {scan.raw_data}")
 
-    return templates.TemplateResponse("scan_result.html", {
-        "request": request,
-        "scan_id": scan_id,
-        "scan": scan_data,
-        "current_user": user
-    })
+        # Iterate over findings in raw_data
+        for finding in scan.raw_data:
+            if isinstance(finding, dict):  # Ensure each finding is a dictionary
+                for vuln in finding.get("vulnerabilities", []):
+                    cve = get_cve_by_id(db, vuln["id"])
+                    logger.debug(f"Fetched CVE {vuln['id']} with summary: {cve.summary if cve else 'Not found'}")
+                    vuln["summary"] = cve.summary if cve and cve.summary else "No summary available"
+
+        return templates.TemplateResponse("scan_result.html", {
+            "request": request,
+            "scan": {
+                "id": scan.id,
+                "targets": scan.targets,
+                "status": scan.status,
+                "started_at": scan.started_at,
+                "completed_at": scan.completed_at,
+                "raw_data": scan.raw_data
+            },
+            "scan_id": scan_id,
+            "current_user": user,
+        })
+    finally:
+        db.close()
 
 @protected_router.get("/scan/{scan_id}/pdf", response_class=FileResponse)
 def get_scan_pdf(scan_id: str, db: Session = Depends(get_db)):
@@ -211,6 +230,7 @@ def get_agent_report(agent_id: int, db: Session = Depends(get_db), user: BasicUs
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
 
+    
     return JSONResponse(content={
         "hostname": report.hostname,
         "timestamp": str(report.reported_at),
