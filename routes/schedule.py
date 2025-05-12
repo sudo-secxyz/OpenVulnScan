@@ -1,3 +1,4 @@
+#routes/schedule.py
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -5,6 +6,9 @@ from database.db_manager import SessionLocal
 from auth.dependencies import  get_current_user, BasicUser
 from models.scheduled_scan import ScheduledScan
 from models.scan import Scan
+from models.finding import Finding
+from models.cve import CVE
+from models.asset import Asset  
 from datetime import datetime
 from sqlalchemy.orm import joinedload
 import json
@@ -99,11 +103,11 @@ def view_scan_history(request: Request, user: BasicUser = Depends(get_current_us
 def scan_detail(request: Request, scan_id: str, user: BasicUser = Depends(get_current_user)):
     db = SessionLocal()
     try:
-        result = db.query(Scan).options(joinedload(Scan.findings)).filter(Scan.id == scan_id).first()
+        result = db.query(Scan).options(joinedload(Scan.findings).joinedload(Finding.cves)).filter(Scan.id == scan_id).first()
         if not result:
             return HTMLResponse(f"<h1>Scan ID {scan_id} not found</h1>", status_code=404)
 
-        # Deserialize raw_data for each finding
+        # Deserialize raw_data for each finding and prepare CVE info
         for finding in result.findings:
             logger.info(f"Raw data before deserialization: {finding.raw_data}")
             if isinstance(finding.raw_data, str):
@@ -111,8 +115,14 @@ def scan_detail(request: Request, scan_id: str, user: BasicUser = Depends(get_cu
                     finding.raw_data = json.loads(finding.raw_data)
                     logger.info(f"Deserialized raw_data: {finding.raw_data}")
                 except json.JSONDecodeError:
-                    finding.raw_data = {}  # Default to an empty dictionary if deserialization fails
+                    finding.raw_data = {}
                     logger.error(f"Failed to deserialize raw_data for finding {finding.id}")
+
+            # CVEs already loaded by joinedload
+            finding.cve_data = [
+                {"cve_id": cve.cve_id, "summary": cve.summary or "No description available"} 
+                for cve in finding.cves
+            ]
     finally:
         db.close()
 

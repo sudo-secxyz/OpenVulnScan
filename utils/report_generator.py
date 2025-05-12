@@ -41,19 +41,20 @@ def generate_scan_report(scan: Scan) -> Optional[str]:
     pdf.cell(200, 10, txt=f"Completed At: {scan.completed_at.isoformat() if scan.completed_at else 'In Progress'}", ln=True)
     pdf.ln(10)
 
-    # Parse raw_data
-    raw_data = scan.raw_data or []
-    for finding in raw_data:
-        pdf.cell(200, 10, txt=f"IP Address: {finding.get('ip', 'N/A')}", ln=True)
-        pdf.cell(200, 10, txt=f"Hostname: {finding.get('hostname', 'N/A')}", ln=True)
+    # Iterate over findings
+    for finding in scan.findings:
+        pdf.cell(200, 10, txt=f"IP Address: {finding.ip_address}", ln=True)
+        pdf.cell(200, 10, txt=f"Hostname: {finding.hostname}", ln=True)
 
         pdf.cell(200, 10, txt="Open Ports:", ln=True)
-        for port in finding.get("open_ports", []):
+        for port in json.loads(finding.raw_data).get("open_ports", []):
             pdf.cell(200, 10, txt=f"  - {port['port']}/{port['protocol']} ({port['service']})", ln=True)
 
         pdf.cell(200, 10, txt="Vulnerabilities:", ln=True)
-        for vuln in finding.get("vulnerabilities", []):
-            pdf.cell(200, 10, txt=f"  - {vuln['id']}: {vuln['description']}", ln=True)
+        for cve in finding.cves:
+            pdf.cell(200, 10, txt=f"  - ID: {cve.cve_id}", ln=True)
+            pdf.cell(200, 10, txt=f"    Summary: {cve.summary or 'No summary available'}", ln=True)
+            pdf.cell(200, 10, txt=f"    Severity: {cve.severity or 'Unknown'}", ln=True)
 
         pdf.ln(10)
 

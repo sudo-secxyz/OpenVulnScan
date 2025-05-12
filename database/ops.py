@@ -98,6 +98,10 @@ def get_scan(scan_id: str):
     finally:
         db.close()
 
+def get_cve_by_id(db: Session, cve_id: str):
+    return db.query(CVE).filter(CVE.cve_id == cve_id).first()
+
+
 def get_all_scans(db: Session = None):
     close_db = False
     if db is None:

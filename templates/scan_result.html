@@ -1,54 +1,69 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Scan Results for {{ scan.targets | join(', ') }}</h2>
+<h2 class="text-xl font-semibold mb-4">Scan Results for {{ scan.targets | join(', ') }}</h2>
 <p><strong>Status:</strong> {{ scan.status }}</p>
-<p><strong>Started At:</strong> {{ scan.started_at }}</p>
-<p><strong>Completed At:</strong> {{ scan.completed_at }}</p>
+<p><strong>Started At:</strong> {{ scan.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+<p><strong>Completed At:</strong> 
+    {% if scan.completed_at %}
+        {{ scan.completed_at.strftime('%Y-%m-%d %H:%M:%S') }}
+    {% else %}
+        Not completed yet
+    {% endif %}
+</p>
 
-<h3>Findings</h3>
-<table class="table-auto border-collapse border border-gray-300 w-full">
+<h3 class="text-lg font-medium mt-6 mb-2">Findings</h3>
+<table class="table-auto border-collapse border border-gray-300 w-full text-sm">
     <thead class="bg-gray-100">
         <tr>
             <th class="border px-4 py-2">IP Address</th>
             <th class="border px-4 py-2">Hostname</th>
             <th class="border px-4 py-2">Open Ports</th>
-            <th class="border px-4 py-2">Vulnerabilities</th>
+            <th class="border px-4 py-2">Vulnerabilities (CVEs)</th>
+
         </tr>
     </thead>
     <tbody>
-        {% if scan.raw_data %}
-        {% for finding in scan.raw_data %}
-        <tr>
-            <td class="border px-4 py-2">{{ finding.ip }}</td>
-            <td class="border px-4 py-2">{{ finding.hostname }}</td>
-            <td class="border px-4 py-2">
-                {% if finding.open_ports %}
-                    <ul>
-                        {% for port in finding.open_ports %}
-                            <li>{{ port.port }}/{{ port.protocol }} - {{ port.service }}</li>
-                        {% endfor %}
-                    </ul>
-                {% else %}
-                    No open ports
-                {% endif %}
-            </td>
-            <td class="border px-4 py-2">
-                {% if finding.vulnerabilities %}
-                    <ul>
-                        {% for vuln in finding.vulnerabilities %}
-                            <li>{{ vuln.id }}: {{ vuln.description }}</li>
-                        {% endfor %}
-                    </ul>
-                {% else %}
-                    No vulnerabilities
-                {% endif %}
-            </td>
-        </tr>
-        {% endfor %}
-        {% endif %}
+{% if scan.raw_data %}
+    {% for finding in scan.raw_data %}
+    <tr class="hover:bg-gray-50">
+        <td class="border px-4 py-2">{{ finding.ip }}</td>
+        <td class="border px-4 py-2">{{ finding.hostname }}</td>
+        <td class="border px-4 py-2">
+            {% if finding.open_ports %}
+                <ul>
+                    {% for port in finding.open_ports %}
+                        <li>{{ port.port }}/{{ port.protocol }} - {{ port.service }}</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                No open ports
+            {% endif %}
+        </td>
+        <td class="border px-4 py-2">
+            {% if finding.vulnerabilities %}
+                <ul>
+                    {% for vuln in finding.vulnerabilities %}
+                        <li>{{ vuln.id }}: {{ vuln.description }} - {{ vuln.summary }}</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                No vulnerabilities
+            {% endif %}
+        </td>
+     
+    </tr>
+    {% endfor %}
+{% else %}
+    <tr>
+        <td colspan="5" class="border px-4 py-2 text-center">No findings available</td>
+    </tr>
+{% endif %}
+
     </tbody>
 </table>
 
-<p><a href="/scan/{{ scan_id }}/pdf">Download PDF Report</a></p>
-<p><a href="/">Back to Scan History</a></p>
+<div class="mt-6 space-x-4">
+    <a href="/scan/{{ scan_id }}/pdf" class="text-blue-600 underline">Download PDF Report</a>
+    <a href="/" class="text-blue-600 underline">Back to Scan History</a>
+</div>
 {% endblock %}
