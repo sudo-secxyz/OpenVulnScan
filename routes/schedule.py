@@ -12,6 +12,7 @@ from models.asset import Asset
 from datetime import datetime
 from sqlalchemy.orm import joinedload
 import json
+import html
 import logging
 
 logger = logging.getLogger(__name__)
@@ -105,7 +106,8 @@ def scan_detail(request: Request, scan_id: str, user: BasicUser = Depends(get_cu
     try:
         result = db.query(Scan).options(joinedload(Scan.findings).joinedload(Finding.cves)).filter(Scan.id == scan_id).first()
         if not result:
-            return HTMLResponse(f"<h1>Scan ID {scan_id} not found</h1>", status_code=404)
+            sanitized_scan_id = html.escape(scan_id)
+            return HTMLResponse(f"<h1>Scan ID {sanitized_scan_id} not found</h1>", status_code=404)
 
         # Deserialize raw_data for each finding and prepare CVE info
         for finding in result.findings:
