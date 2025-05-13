@@ -17,6 +17,7 @@ from datetime import datetime
 from sqlalchemy.orm import joinedload
 import json
 import logging
+import re
 
 from fastapi.responses import FileResponse
 from fastapi.templating import Jinja2Templates
@@ -95,41 +96,56 @@ def query_dashboard(
     allowed_tables = ["agent_reports", "packages", "cves", "findings", "scans"]
     if table not in allowed_tables:
         logger.error(f"Invalid table name: {table}")
-        return HTMLResponse("<h1>Invalid table name</h1>", status_code=400)
+        return templates.TemplateResponse("dashboard.html", {
+            "request": request,
+            "error_message": f"Invalid table name: {table}",
+            "results": [],
+            "columns": [],
+            "current_user": user
+        })
 
     # Fetch column names for the selected table
     try:
         columns_query = text(f"PRAGMA table_info({table})")
         columns_info = db.execute(columns_query).fetchall()
-        valid_columns = [col[1] for col in columns_info]  # Extract column names from the second element of each tuple
+        valid_columns = [col[1] for col in columns_info]
         logger.debug(f"Valid columns for table {table}: {valid_columns}")
     except Exception as e:
         logger.error(f"Error fetching columns for table {table}: {str(e)}")
-        return HTMLResponse(f"<h1>Error fetching columns for table {table}</h1>", status_code=400)
+        return templates.TemplateResponse("dashboard.html", {
+            "request": request,
+            "error_message": f"Error fetching columns for table {table}: {str(e)}",
+            "results": [],
+            "columns": [],
+            "current_user": user
+        })
 
     sql_query = f"SELECT * FROM {table}"
     parameters = {}
 
     if query:
         try:
-            # Split the query into key-value pairs
-            if "=" not in query:
-                raise ValueError("Query must be in the format 'key=value'.")
+            # Validate query string with regex
+            if not re.match(r"^[a-zA-Z0-9_]+=[a-zA-Z0-9_.*]+$", query):
+                raise ValueError("Query contains invalid characters.")
 
             key, value = query.split("=", 1)
 
             # Validate the column name
             if key not in valid_columns:
                 logger.error(f"Invalid column name: {key}")
-                return HTMLResponse(
-                    f"<h1>Invalid column name: {key}. Valid columns are: {', '.join(valid_columns)}</h1>",
-                    status_code=400
-                )
+                return templates.TemplateResponse("dashboard.html", {
+                    "request": request,
+                    "error_message": f"Invalid column name: {key}. Valid columns are: {', '.join(valid_columns)}",
+                    "results": [],
+                    "columns": valid_columns,
+                    "current_user": user
+                })
 
             # Handle JSON array columns (e.g., "targets")
             if key == "targets":
                 sql_query += f" WHERE JSON_EXTRACT({key}, '$') LIKE :value"
-                parameters["value"] = f'%"{value}"%'  # Match the value within the JSON array
+                parameters["value"] = f'%"{value}"%'
             elif value == "*":
                 sql_query += f" WHERE {key} IS NOT NULL"
             else:
@@ -137,7 +153,13 @@ def query_dashboard(
                 parameters["value"] = value
         except ValueError as e:
             logger.error(f"Invalid query format: {query} - {str(e)}")
-            return HTMLResponse(f"<h1>Invalid query format. Use 'key=value'.</h1>", status_code=400)
+            return templates.TemplateResponse("dashboard.html", {
+                "request": request,
+                "error_message": f"Invalid query format. Use 'key=value'.",
+                "results": [],
+                "columns": valid_columns,
+                "current_user": user
+            })
 
     try:
         logger.debug(f"Executing query: {sql_query} with parameters: {parameters}")
@@ -145,11 +167,17 @@ def query_dashboard(
         columns = valid_columns
     except Exception as e:
         logger.error(f"Error executing query: {sql_query} - {str(e)}")
-        return HTMLResponse(f"<h1>Error executing query: {str(e)}</h1>", status_code=400)
+        return templates.TemplateResponse("dashboard.html", {
+            "request": request,
+            "error_message": f"Error executing query: {str(e)}",
+            "results": [],
+            "columns": valid_columns,
+            "current_user": user
+        })
 
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "results": results,
-        "columns": columns,
+        "columns": valid_columns,
         "current_user": user
     })

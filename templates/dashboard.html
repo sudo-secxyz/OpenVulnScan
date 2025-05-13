@@ -19,6 +19,13 @@
     <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded">Search</button>
 </form>
 
+{% if error_message %}
+<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+    <strong class="font-bold">Error:</strong>
+    <span class="block sm:inline">{{ error_message }}</span>
+</div>
+{% endif %}
+
 {% if results %}
 <h3 class="text-lg font-semibold mt-6 mb-2">Query Results</h3>
 <table class="table-auto border-collapse border border-gray-300 w-full text-sm">
