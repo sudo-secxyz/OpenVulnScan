@@ -32,6 +32,7 @@ from utils.settings import router as settings_router
 from utils.agent_router import router as AgentRouter
 from routes.schedule import router as schedule_router
 from routes.assets import router as assets_router
+from routes.dashboard import router as dashboard_router
 from passlib.hash import bcrypt
 from uuid import uuid4
 
@@ -348,6 +349,7 @@ if __name__ == "__main__":
 
 # Register protected routes
 app.include_router(protected_router)
+app.include_router(dashboard_router)
 
 
 @app.exception_handler(HTTPException)

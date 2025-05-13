@@ -134,8 +134,8 @@ async def check_package_cves(
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-@router.get("/dashboard", response_class=HTMLResponse, tags=['agent'])
-def dashboard(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+@router.get("/vuln_dashboard", response_class=HTMLResponse, tags=['agent'])
+def vuln_dashboard(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     report_count = db.scalar(select(func.count()).select_from(AgentReport))
     package_count = db.scalar(select(func.count()).select_from(Package))
     cve_count = db.scalar(select(func.count()).select_from(CVE))
@@ -156,7 +156,7 @@ def dashboard(request: Request, db: Session = Depends(get_db), user: User = Depe
     )
     agents = db.execute(latest_reports_query).all()
 
-    return templates.TemplateResponse("dashboard.html", {
+    return templates.TemplateResponse("vuln_dashboard.html", {
         "request": request,
         "report_count": report_count,
         "package_count": package_count,

@@ -1,31 +1,45 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h2 class="text-xl font-bold mb-4">Dashboard Overview</h2>
-<ul class="mb-4">
-  <li><strong>Agent Reports:</strong> {{ report_count }}</li>
-  <li><strong>Total Packages:</strong> {{ package_count }}</li>
-  <li><strong>Total CVEs:</strong> {{ cve_count }}</li>
-</ul>
+<h2 class="text-xl font-bold mb-4">Database Query Dashboard</h2>
 
-<h3 class="text-lg font-semibold mt-6 mb-2">Top Vulnerable Packages</h3>
-<ul>
-  {% for pkg in top_packages %}
-    <li>{{ pkg.name }} — {{ pkg.cve_count }} CVEs</li>
-  {% endfor %}
-</ul>
-<h3 class="text-lg font-semibold mt-6 mb-2">Agents</h3>
-<ul>
-  {% for agent in agents %}
-    <li>
-      <a href="/agent/report/{{ agent.latest_report_id }}" class="text-blue-600 underline">
-        {{ agent.hostname }}
-      </a>
-      — Last reported at {{ agent.reported_at }}
-    </li>
-  {% else %}
-    <li>No agents found.</li>
-  {% endfor %}
-</ul>
+<form method="get" action="/dashboard/query" class="mb-6">
+    <label for="table" class="block text-sm font-medium text-gray-700">Select Table:</label>
+    <select name="table" id="table" class="w-full p-2 border rounded mb-4">
+        <option value="agent_reports">Agent Reports</option>
+        <option value="packages">Packages</option>
+        <option value="cves">CVEs</option>
+        <option value="findings">Findings</option>
+        <option value="scans">Scans</option>
+    </select>
 
+    <label for="query" class="block text-sm font-medium text-gray-700">Query (SQL WHERE Clause):</label>
+    <input type="text" name="query" id="query" placeholder="e.g., hostname = 'example.com'" class="w-full p-2 border rounded mb-4">
+
+    <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded">Search</button>
+</form>
+
+{% if results %}
+<h3 class="text-lg font-semibold mt-6 mb-2">Query Results</h3>
+<table class="table-auto border-collapse border border-gray-300 w-full text-sm">
+    <thead class="bg-gray-100">
+        <tr>
+            {% for column in columns %}
+                <th class="border px-4 py-2">{{ column }}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in results %}
+            <tr>
+                {% for value in row %}
+                    <td class="border px-4 py-2">{{ value }}</td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No results found.</p>
+{% endif %}
 {% endblock %}

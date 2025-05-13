@@ -1,4 +1,4 @@
-# rouutes/assets.py
+# routes/assets.py
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.templating import Jinja2Templates
 from database.db_manager import SessionLocal, get_db
