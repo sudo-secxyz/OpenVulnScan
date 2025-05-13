@@ -32,6 +32,7 @@ from utils.settings import router as settings_router
 from utils.agent_router import router as AgentRouter
 from routes.schedule import router as schedule_router
 from routes.assets import router as assets_router
+from routes.dashboard import router as dashboard_router
 from passlib.hash import bcrypt
 from uuid import uuid4
 
@@ -173,6 +174,10 @@ def scan_detail(scan_id: str, request: Request, user: BasicUser = Depends(get_cu
         scan = db.query(Scan).filter(Scan.id == scan_id).first()
         if not scan:
             raise HTTPException(status_code=404, detail="Scan not found")
+
+        # Ensure raw_data is initialized
+        if scan.raw_data is None:
+            scan.raw_data = []
 
         # Deserialize raw_data if it's a JSON string
         if isinstance(scan.raw_data, str):
@@ -344,6 +349,7 @@ if __name__ == "__main__":
 
 # Register protected routes
 app.include_router(protected_router)
+app.include_router(dashboard_router)
 
 
 @app.exception_handler(HTTPException)
