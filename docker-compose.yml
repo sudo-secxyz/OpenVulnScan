@@ -89,4 +89,14 @@ volumes:
 networks:
   default:
     driver: bridge
-  
+  scan_net:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: "1500"
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+      com.docker.network.bridge.enable_icc: "true"
+    ipam:
+      config:
+        - subnet: 172.168.100.0/24
+          gateway: 172.168.100.1
+    internal: false
