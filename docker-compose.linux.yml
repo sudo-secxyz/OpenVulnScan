@@ -1,5 +1,31 @@
+version: '3.8'
+
 services:
   zap:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    container_name: openvulnscan-zap
+    command: >
+      zap.sh -daemon -port 8080 -host 0.0.0.0 
+      -config api.disablekey=true 
+      -config api.addrs.addr.name=.* 
+      -config api.addrs.addr.regex=true 
+      -config connection.timeoutInSecs=600
+      -config network.localhost.proxy.excludeRegex=true 
+      -config network.general.dnsTtlSuccessfulQueries=-1
+    volumes:
+      - zap_results:/zap/wrk
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - NET_BIND_SERVICE
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      - JAVA_OPTS="-Xmx4g"
+      - ZAP_DOCKER_ALLOW_HOST=true
     network_mode: host
-    ports: []  # No need to publish ports in host mode
-    networks: null  # Remove custom networks for ZAP in host mode
+    ports: []        # Prevents trying to bind ports with host mode
+    networks: null   # This line *must* be here to prevent conflict
+
+volumes:
+  zap_results:
