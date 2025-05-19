@@ -25,5 +25,80 @@ services:
     network_mode: host
     ports: []        # Prevents trying to bind ports with host mode
 
+  
+  web:
+    build:
+      context: .
+    container_name: openvulnscan-web
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+      - zap_results:/app/data/zap_results  # Shared volume for ZAP results
+    ports:
+      - "8000:8000"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - ZAP_RESULTS_DIR=/app/data/zap_results
+    depends_on:
+      - redis
+      - worker
+
+  redis:
+    image: redis:7
+    container_name: openvulnscan-redis
+    ports:
+      - "6379:6379"
+  worker:
+    build:
+      context: .
+    container_name: openvulnscan-worker
+    command: celery -A celery_app worker --loglevel=info
+    volumes:
+      - .:/app
+      - zap_results:/app/data/zap_results  # Shared volume for ZAP results
+    networks:
+      - default
+      - scan_net
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - ZAP_API_URL=http://zap:8080
+    depends_on:
+      - redis
+      - zap
+
+  beat:
+    build:
+      context: .
+    container_name: openvulnscan-beat
+    command: celery -A celery_app beat --loglevel=info
+    volumes:
+      - .:/app
+      - zap_results:/app/data/zap_results  # Shared volume for ZAP results
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - worker
+
 volumes:
-  zap_results:
+  zap_results:  # Define the shared volume
+
+networks:
+  default:
+    driver: bridge
+  scan_net:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: "1500"
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+      com.docker.network.bridge.enable_icc: "true"
+    ipam:
+      config:
+        - subnet: 172.168.100.0/24
+          gateway: 172.168.100.1
+    internal: false
+
+
