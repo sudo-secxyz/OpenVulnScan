@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   web:
     build:
@@ -8,11 +6,13 @@ services:
     command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - .:/app
+      - zap_results:/app/data/zap_results  # Shared volume for ZAP results
     ports:
       - "8000:8000"
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - ZAP_RESULTS_DIR=/app/data/zap_results
     depends_on:
       - redis
       - worker
@@ -23,6 +23,32 @@ services:
     ports:
       - "6379:6379"
 
+  zap:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    container_name: openvulnscan-zap
+    command: >
+      zap.sh -daemon -port 8080 -host 0.0.0.0 
+      -config api.disablekey=true 
+      -config api.addrs.addr.name=.* 
+      -config api.addrs.addr.regex=true 
+      -config connection.timeoutInSecs=600
+      -config network.localhost.proxy.excludeRegex=true 
+      -config network.general.dnsTtlSuccessfulQueries=-1
+    volumes:
+      - zap_results:/zap/wrk
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - NET_BIND_SERVICE
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      - JAVA_OPTS="-Xmx4g"
+      - ZAP_DOCKER_ALLOW_HOST=true
+    networks:
+      - default
+      - scan_net
+
   worker:
     build:
       context: .
@@ -30,11 +56,18 @@ services:
     command: celery -A celery_app worker --loglevel=info
     volumes:
       - .:/app
+      - zap_results:/app/data/zap_results  # Shared volume for ZAP results
+    networks:
+      - default
+      - scan_net
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - ZAP_API_URL=http://zap:8080
     depends_on:
       - redis
+      - zap
+
   beat:
     build:
       context: .
@@ -42,9 +75,18 @@ services:
     command: celery -A celery_app beat --loglevel=info
     volumes:
       - .:/app
+      - zap_results:/app/data/zap_results  # Shared volume for ZAP results
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       - redis
       - worker
+
+volumes:
+  zap_results:  # Define the shared volume
+
+networks:
+  default:
+    driver: bridge
+  

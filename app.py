@@ -9,6 +9,7 @@ import json
 import html
 import datetime
 import models
+from sqlalchemy import func
 
 from utils.background import handle_scan
 from database.base import Base
@@ -33,6 +34,7 @@ from utils.agent_router import router as AgentRouter
 from routes.schedule import router as schedule_router
 from routes.assets import router as assets_router
 from routes.dashboard import router as dashboard_router
+from routes.scan import router as scan_router
 from passlib.hash import bcrypt
 from uuid import uuid4
 
@@ -127,12 +129,28 @@ def create_default_admin():
 # Protected router
 protected_router = APIRouter()
 
-@protected_router.get("/", response_class=HTMLResponse)
-def read_root(request: Request, user: BasicUser = Depends(get_current_user)):
-    logger.info("Accessing main page")
-    scans = get_all_scans()
-    return templates.TemplateResponse("index.html", {"request": request, "scans": scans, "current_user": user})
+@app.get("/", response_class=HTMLResponse)
+def index(request: Request, db: Session = Depends(get_db), user: BasicUser = Depends(get_current_user)):
+    # Summary data
+    total_scans = db.query(func.count(Scan.id)).scalar()
+    completed_scans = db.query(func.count(Scan.id)).filter(Scan.status == "completed").scalar()
+    active_scans = db.query(func.count(Scan.id)).filter(Scan.status == "running").scalar()
 
+    # Recent scans
+    recent_scans = db.query(Scan).order_by(Scan.started_at.desc()).limit(5).all()
+
+    # Critical vulnerabilities (example: filter by severity)
+    critical_vulnerabilities = db.query(func.count()).filter(Scan.status == "completed").scalar()
+
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "total_scans": total_scans,
+        "completed_scans": completed_scans,
+        "active_scans": active_scans,
+        "recent_scans": recent_scans,
+        "critical_vulnerabilities": critical_vulnerabilities,
+        "current_user": user
+    })
 from utils.tasks import run_scan, schedule_scan  # You’ll create `schedule_scan`
 
 @app.post("/scan", response_model=ScanTaskResponse)
@@ -174,7 +192,8 @@ def scan_detail(scan_id: str, request: Request, user: BasicUser = Depends(get_cu
         scan = db.query(Scan).filter(Scan.id == scan_id).first()
         if not scan:
             raise HTTPException(status_code=404, detail="Scan not found")
-
+        # Deserialize targets
+        scan.targets = json.loads(scan.targets)
         # Ensure raw_data is initialized
         if scan.raw_data is None:
             scan.raw_data = []
@@ -350,6 +369,7 @@ if __name__ == "__main__":
 # Register protected routes
 app.include_router(protected_router)
 app.include_router(dashboard_router)
+app.include_router(scan_router)
 
 
 @app.exception_handler(HTTPException)

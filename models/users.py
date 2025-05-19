@@ -2,6 +2,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from database.base import Base
 from datetime import datetime
+from sqlalchemy.orm import relationship
 
 class User(Base):
     __tablename__ = "users"
@@ -15,6 +16,7 @@ class User(Base):
     auth_provider = Column(String, default="manual")  # 'google', 'github', 'wallet', 'manual'
     wallet_address = Column(String, unique=True, nullable=True)
     role = Column(String, default="user")  # "admin", "user", "readonly"
+
 
     def is_admin(self):
         if isinstance(self.is_admin, bool):

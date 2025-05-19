@@ -1,51 +1,95 @@
-#utils/tasks.py
-from celery_app import shared_task
-from celery_app import celery_app
-import _asyncio
+# utils/tasks.py
+
+import json
+import os
+import re
+import subprocess
+import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
-from config import setup_logging
-from services.scan_service import start_scan_task, run_scan as rs 
-from database.ops import insert_scan , SessionLocal 
+from urllib.parse import urlparse, urlunparse
+
+import pytz
+from zapv2 import ZAPv2
+
+from celery_app import shared_task
+from config import setup_logging, ZAP_RESULTS_DIR
+from database.ops import insert_scan, SessionLocal
+from models.cve import CVE
+from models.discovery import DiscoveryHost
+from models.finding import Finding
 from models.scheduled_scan import ScheduledScan
 from models.scan import Scan
-from models.finding import Finding
-import pytz
-from models.cve import CVE
+from models.web_alert import WebAlert
 from services.cve_service import get_cve_description
+from services.scan_service import run_scan as rs
 from utils.get_system_time import get_system_timezone
-from models.schemas import ScanRequest
-import json
+from scanners.nmap_runner import NmapRunner
+from utils.settings import get_system_timezone
+
 
 logger = setup_logging()
 
-from concurrent.futures import ThreadPoolExecutor
+# ZAP configuration
+ZAP_API_URL = "http://zap:8080"
+ZAP_API_KEY = ""
+zap = ZAPv2(apikey=ZAP_API_KEY, proxies={'http': ZAP_API_URL, 'https': ZAP_API_URL})
+
+# === Helper Functions ===
+
+def normalize_url(target: str) -> str:
+    """Ensure the target URL includes a valid scheme."""
+    parsed = urlparse(target)
+    if not parsed.scheme:
+        # Default to http if no scheme is provided
+        return urlunparse(("http", parsed.netloc or parsed.path, "", "", "", ""))
+    return target
+
+def validate_target_url(url: str) -> bool:
+    """Validate if the target URL is accessible"""
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.netloc or parsed.path
+        
+        # First try a basic connection check
+        result = subprocess.run(
+            ["ping", "-n", "1", "-w", "1000", hostname],
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode != 0:
+            logger.warning(f"Target {hostname} is not responding to ping")
+            return False
+            
+        # Then try ZAP spider
+        response = zap.spider.scan(url)
+        if response and response != "url_not_found":
+            return True
+            
+        logger.warning(f"Target {url} is not accessible via ZAP spider")
+        return False
+        
+    except Exception as e:
+        logger.error(f"Error validating target URL {url}: {e}")
+        return False
 
 def run_parallel_scans(scan_id, targets):
+    """Run Nmap scans in parallel for multiple targets."""
     with ThreadPoolExecutor(max_workers=5) as executor:
         results = list(executor.map(lambda target: rs(scan_id, [target]), targets))
-    # Flatten the results if they are nested lists
-    flattened_results = [item for sublist in results for item in sublist]
-    return flattened_results
+    # Flatten any nested results
+    return [item for sublist in results for item in (sublist if isinstance(sublist, list) else [sublist])]
 
 def process_cves(finding):
+    """Extract CVE IDs from finding raw data and insert into the database."""
     session = SessionLocal()
     try:
         raw_data = json.loads(finding.raw_data)
-        logger.debug(f"Raw data for finding {finding.id}: {raw_data}")
-
-        # Extract CVE IDs from vulnerabilities
-        cve_ids = list({vuln['id'] for vuln in raw_data.get('vulnerabilities', [])})  # Use set to deduplicate
-
+        cve_ids = list({vuln['id'] for vuln in raw_data.get('vulnerabilities', [])})
         for cve_id in cve_ids:
-            logger.info(f"Saving CVE {cve_id} for finding {finding.id}")
-            cve_entry = CVE(
-                cve_id=cve_id,
-                finding_id=finding.id,  # Link CVE to the Finding
-                summary=None,  # Placeholder for description
-                severity=None  # Placeholder for severity
-            )
+            cve_entry = CVE(cve_id=cve_id, finding_id=finding.id)
             session.add(cve_entry)
-
         session.commit()
         logger.info(f"Committed {len(cve_ids)} CVEs for finding {finding.id}")
     except Exception as e:
@@ -55,24 +99,21 @@ def process_cves(finding):
         session.close()
 
 def enrich_cve_descriptions():
+    """Fetch and update CVE descriptions for CVEs missing summaries."""
     session = SessionLocal()
     try:
         cves = session.query(CVE).filter(CVE.summary == None).all()
-        logger.info(f"Found {len(cves)} CVEs without descriptions")
-
+        logger.info(f"Found {len(cves)} CVEs missing descriptions")
         for cve in cves:
             try:
-                cve_call = str(cve.cve_id).strip()
-                description = get_cve_description(cve_call)
+                description = get_cve_description(cve.cve_id.strip())
                 if description:
                     cve.summary = description
-                    session.add(cve)  # Make sure SQLAlchemy knows this object changed
-                    #logger.info(f"Updated description for CVE {cve.cve_id}\n {cve.summary}")
+                    session.add(cve)
                 else:
                     logger.warning(f"No description found for CVE {cve.cve_id}")
             except Exception as e:
                 logger.error(f"Error fetching description for CVE {cve.cve_id}: {e}")
-
         session.commit()
     except Exception as e:
         logger.error(f"Error committing CVE descriptions: {e}")
@@ -80,44 +121,48 @@ def enrich_cve_descriptions():
     finally:
         session.close()
 
+def get_scan_status(scan_id=None):
+    params = {}
+    if scan_id:
+        params['scanId'] = scan_id
+    response = zap._request(zap.base + 'ascan/view/status/', params)
+    return response.get('status')
 
+# === Celery Tasks ===
 
 @shared_task
 def run_scan(scan_data: dict):
+    """
+    Run scan on given targets, store findings, process CVEs,
+    update scan status, and enrich CVE descriptions.
+    """
     scan_id = scan_data['scan_id']
     targets = scan_data['targets']
     logger.info(f"Running scan {scan_id} on targets: {targets}")
 
-    # Run scans in parallel
     findings = run_parallel_scans(scan_id, targets)
 
-    # Flatten findings if they are nested lists
-    if any(isinstance(finding, list) for finding in findings):
+    # Ensure findings is a flat list
+    if any(isinstance(f, list) for f in findings):
         findings = [item for sublist in findings for item in sublist]
 
-    # Log findings for debugging
     logger.info(f"Findings for scan {scan_id}: {findings}")
 
-    # Save findings to the database directly in this function
     db = SessionLocal()
     try:
         for finding in findings:
-            logger.info(f"Processing finding: {finding}")  # Log each finding
             db_finding = Finding(
                 scan_id=scan_id,
-                ip_address=finding["ip"],
-                hostname=finding["hostname"],
+                ip_address=finding.get("ip"),
+                hostname=finding.get("hostname"),
                 raw_data=json.dumps(finding),
-                description=", ".join([
-                    vuln["description"] for vuln in finding.get("vulnerabilities", [])
-                ])
+                description=", ".join(vuln.get("description", "") for vuln in finding.get("vulnerabilities", []))
             )
             db.add(db_finding)
-            db.commit()  # Commit after each finding to ensure `db_finding.id` is available
-
-            # Pass the `Finding` model instance to `process_cves`
+            db.commit()  # Commit to get finding ID for CVE linking
             process_cves(db_finding)
-        # Update scan status in the database
+
+        # Update scan status to completed
         db_scan = db.query(Scan).filter(Scan.id == scan_id).first()
         if db_scan:
             db_scan.status = 'completed'
@@ -125,50 +170,238 @@ def run_scan(scan_data: dict):
             db.commit()
     except Exception as e:
         logger.error(f"Error saving findings or updating scan status: {e}", exc_info=True)
+        db.rollback()
     finally:
         db.close()
 
-    # Enrich CVE descriptions after processing CVEs
     enrich_cve_descriptions()
-
 
 @shared_task
 def schedule_scan(scan_data: dict):
+    """Insert scan into DB and trigger async scan task."""
     scan_id = scan_data['scan_id']
     targets = scan_data['targets']
     insert_scan(scan_id, targets, datetime.now(pytz.timezone(get_system_timezone())))
     run_scan.delay({"scan_id": scan_id, "targets": targets})
 
-
 @shared_task
 def process_scheduled_scans():
+    """
+    Query scheduled scans that are due, queue them for execution,
+    and update their next scheduled run.
+    """
     db = SessionLocal()
     try:
         local_tz = pytz.timezone(get_system_timezone())
         now = datetime.now(local_tz)
         scheduled_scans = db.query(ScheduledScan).filter(ScheduledScan.start_datetime <= now).all()
+
         for sscan in scheduled_scans:
             logger.info(f"Queuing scheduled scan {sscan.id} for execution")
-
-            # Reuse the scheduled scan ID
             scan_id = f"scheduled-{sscan.id}-{now.strftime('%Y%m%d%H%M%S')}"
-            targets = sscan.get_targets()  # Assuming this method returns a list of targets
+            targets = sscan.get_targets()
             if isinstance(targets, str):
-                targets = [targets]  # Ensure it's a list
-
+                targets = json.loads(targets)
             insert_scan(scan_id, targets, now)
+            run_scan.delay({"scan_id": scan_id, "targets": targets})
 
-            # Queue scan with Celery
-            run_scan.delay({"scan_id": scan_id, "targets": sscan.get_targets()})
-            logger.info(f"Queued scan ID: {scan_id}")
-
-            # Update status or next run time if applicable
-            # You could parse `sscan.days` for cron-style rescheduling in the future
-            # For now, let's mark it as completed
-            sscan.start_datetime = now + timedelta(days=7)  # or however you want to reschedule
+            # Reschedule for one week later (customize as needed)
+            sscan.start_datetime = now + timedelta(days=7)
             db.commit()
     except Exception as e:
         logger.error(f"Error in processing scheduled scans: {e}", exc_info=True)
+        db.rollback()
     finally:
         db.close()
 
+@shared_task
+def run_nmap_discovery(scan_id: int, target: str):
+    """
+    Run Nmap discovery (-sn) scan and save discovered hosts.
+    """
+    session = SessionLocal()
+    try:
+        scan = session.query(Scan).filter(Scan.id == scan_id).first()
+        if not scan:
+            logger.error(f"Nmap discovery scan ID {scan_id} not found.")
+            return
+        scan.status = "running"
+        session.commit()
+
+        result = subprocess.run(
+            ["nmap", "-sn", target, "-oX", "-"],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            scan.status = "failed"
+            session.commit()
+            logger.error(f"Nmap discovery scan failed for target {target}")
+            return
+
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(result.stdout)
+        for host in root.findall("host"):
+            status = host.find("status").get("state")
+            addr = host.find("address")
+            ip = addr.get("addr") if addr is not None else None
+            if ip:
+                discovery = DiscoveryHost(ip_address=ip, status=status, scan_id=scan.id)
+                session.add(discovery)
+
+        scan.status = "completed"
+        scan.completed_at = datetime.utcnow()
+        session.commit()
+    except Exception as e:
+        logger.error(f"Error during Nmap discovery scan {scan_id}: {e}", exc_info=True)
+        if scan:
+            scan.status = "failed"
+            session.commit()
+    finally:
+        session.close()
+
+@shared_task
+def run_nmap_scan(scan_id: str, target: str):
+    """
+    Run full Nmap scan and hand off results to run_scan task.
+    """
+    session = SessionLocal()
+    try:
+        scan = session.query(Scan).filter(Scan.id == scan_id).first()
+        if not scan:
+            logger.error(f"Scan ID {scan_id} not found.")
+            return
+
+        scan.status = "running"
+        session.commit()
+
+        logger.info(f"Running Nmap scan for target: {target}")
+        nmap_runner = NmapRunner([target])
+        findings = nmap_runner.run()
+
+        run_scan.delay({"scan_id": scan_id, "targets": [target]})
+
+    except Exception as e:
+        logger.error(f"Error during Nmap scan for {scan_id}: {e}", exc_info=True)
+        if scan:
+            scan.status = "failed"
+            session.commit()
+    finally:
+        session.close()
+
+@shared_task
+def run_zap_scan(scan_id: int, zap_output_path: str = None, target_url: str = None):
+    session = SessionLocal()
+    scan = None
+    try:
+        os.makedirs(ZAP_RESULTS_DIR, exist_ok=True)
+        if not zap_output_path:
+            zap_output_path = os.path.join(ZAP_RESULTS_DIR, f"{scan_id}.json")
+
+        scan = session.query(Scan).filter(Scan.id == scan_id).first()
+        if not scan:
+            logger.error(f"Scan ID {scan_id} not found for ZAP scan.")
+            return
+
+        scan.status = "running"
+        session.commit()
+
+        if not target_url:
+            raise ValueError("Target URL is required for ZAP scan.")
+
+        # Normalize and validate the target URL
+        normalized_target = normalize_url(target_url)
+        logger.info(f"Starting ZAP active scan for target: {normalized_target}")
+
+        # Create new context for this scan
+        context_name = f"scan_{scan_id}"
+        context_id = zap.context.new_context(context_name)
+        logger.info(f"Created new context {context_name} with ID {context_id}")
+
+        # Add target URL to context
+        zap.context.include_in_context(context_name, f".*{re.escape(normalized_target)}.*")
+        logger.info(f"Added {normalized_target} to context {context_name}")
+
+        # Start spider scan first
+        logger.info(f"Starting spider scan for {normalized_target}")
+        spider_scan_id = zap.spider.scan(url=normalized_target, contextname=context_name)
+        
+        # Wait for spider to complete
+        while int(zap.spider.status(spider_scan_id)) < 100:
+            logger.info(f"Spider progress: {zap.spider.status(spider_scan_id)}%")
+            time.sleep(2)
+
+        logger.info("Spider scan completed, starting active scan")
+
+        # Start active scan using context
+        zap_scan_id = zap.ascan.scan(
+            url=normalized_target,
+            contextid=context_id,
+            recurse=True
+        )
+
+        if not zap_scan_id or zap_scan_id == "url_not_found":
+            raise ValueError(f"Failed to start ZAP scan for target: {normalized_target}")
+
+        logger.info(f"Active scan started with ID: {zap_scan_id}")
+
+        timeout_seconds = 600
+        poll_interval = 5
+        waited = 0
+
+        # Wait for scan completion
+        while waited < timeout_seconds:
+            time.sleep(poll_interval)
+            status = zap.ascan.status(zap_scan_id)
+            if status and status.isdigit():
+                progress = int(status)
+                logger.info(f"ZAP scan progress: {progress}%")
+                if progress >= 100:
+                    break
+            waited += poll_interval
+
+        # Get scan results
+        alerts = zap.core.alerts(baseurl=normalized_target)
+        
+        # Format results similar to nmap findings
+        findings = [{
+            "ip": target_url,
+            "hostname": urlparse(target_url).netloc,
+            "vulnerabilities": [
+                {
+                    "id": alert.get('alertRef', 'ZAP-' + str(idx)),
+                    "description": alert.get('description', ''),
+                    "severity": alert.get('risk', 'Unknown')
+                }
+                for idx, alert in enumerate(alerts)
+            ]
+        }]
+
+        # Save results to file
+        with open(zap_output_path, "w") as f:
+            json.dump(findings, f)
+
+        # Update scan record
+        scan.raw_data = findings
+        scan.status = "completed"
+        scan.completed_at = datetime.now(pytz.timezone(get_system_timezone()))
+        session.commit()
+
+        # Create findings records
+        for finding in findings:
+            db_finding = Finding(
+                scan_id=scan_id,
+                ip_address=finding['ip'],
+                hostname=finding['hostname'],
+                raw_data=json.dumps(finding),
+                description="\n".join(v['description'] for v in finding['vulnerabilities'])
+            )
+            session.add(db_finding)
+        session.commit()
+
+    except Exception as e:
+        logger.error(f"Error running ZAP scan for scan_id {scan_id}: {e}", exc_info=True)
+        if scan:
+            scan.status = "failed"
+            session.commit()
+    finally:
+        session.close()

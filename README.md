@@ -16,13 +16,19 @@ A simple vulnerability scanning application built with FastAPI.
    ```
    OR
    if running via docker:
+   Windows:
    ```bash
-   docker compose up
+   docker compose -f docker-compose.yml -f docker-compose.winmac.yml up --build
+   ```
+
+   Linux:
+   ```cmd
+   docker compose -f docker-compose.yml -f docker-compose.linux.yml up --build
    ```
 
 3. Access the web interface:
    [http://localhost:8000](http://localhost:8000)
-   ![alt text](image.png)
+   ![alt text](image-4.png)
    ![alt text](image-1.png)
    ![alt text](image-2.png)
 ### API Docs

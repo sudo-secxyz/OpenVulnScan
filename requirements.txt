@@ -19,4 +19,5 @@ redis
 pytz
 tzlocal
 futures
-bcrypt 
+bcrypt
+python-owasp-zap-v2.4

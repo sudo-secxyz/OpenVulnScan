@@ -5,6 +5,12 @@ from typing import List, Optional
 from models.finding import Finding  # Assuming Finding is defined in models/finding.py
 from datetime import datetime
 
+
+class ScanCreate(BaseModel):
+    target: str
+    scan_type: str
+
+
 class FindingSchema(BaseModel):
     id: str
     description: str

@@ -1,0 +1,5 @@
+services:
+  zap:
+    network_mode: host
+    ports: []  # No need to publish ports in host mode
+    networks: null  # Remove custom networks for ZAP in host mode

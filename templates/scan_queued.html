@@ -1,3 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}Scan Queued{% endblock %}
+
+{% block content %}
 <h2>Scan Queued!</h2>
-<p>Scan ID: {{ scan_id }}</p>
+<p>Scan ID: {{ scan.id }}</p>
 <p>It will start shortly and show up in your dashboard.</p>
+
+<p>Check the <a href="/dashboard">dashboard</a> for updates.</p>
+{% endblock %}
