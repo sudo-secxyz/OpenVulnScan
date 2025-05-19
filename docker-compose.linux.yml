@@ -1,3 +1,4 @@
+# docker-compose.linux.yml
 version: '3.8'
 
 services:
@@ -25,7 +26,6 @@ services:
       - ZAP_DOCKER_ALLOW_HOST=true
     network_mode: host
     ports: []        # Prevents trying to bind ports with host mode
-    networks: null   # This line *must* be here to prevent conflict
 
 volumes:
   zap_results:
