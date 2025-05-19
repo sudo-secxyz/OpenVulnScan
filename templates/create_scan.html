@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Create New Scan</h1>
+    <form method="post" action="/create-scan">
+        <label for="target">Target:</label>
+        <input type="text" name="target" required><br><br>
+
+        <label for="scan_type">Scan Type:</label>
+        <select name="scan_type">
+            <option value="discovery">Discovery</option>
+            <option value="web">Web</option>
+            <option value="full">Full Scan</option>
+        </select><br><br>
+
+        <input type="submit" value="Start Scan">
+    </form>
+{% endblock %}

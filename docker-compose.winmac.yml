@@ -1,0 +1,18 @@
+services:
+  zap:
+    networks:
+      - default
+      - scan_net
+    ports:
+      - "8080:8080"
+  worker:
+    networks:
+      - default
+      - scan_net
+
+networks:
+  default:
+    external: false
+  scan_net:
+    external: false
+    driver: bridge

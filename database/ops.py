@@ -109,11 +109,11 @@ def get_all_scans(db: Session = None):
         close_db = True
 
     try:
-        scans = db.query(Scan).order_by(Scan.started_at.desc()).all()
+        scans = db.query(Scan).order_by(Scan.created_at.desc()).all()
         return [{
             "scan_id": scan.id,
-            "scan_targets": scan.targets,
-            "started_at": scan.started_at.isoformat() if scan.started_at else None,
+            "scan_targets": scan.target,
+            "started_at": scan.created_at.isoformat() if scan.started_at else None,
             "completed_at": scan.completed_at.isoformat() if scan.completed_at else None
         } for scan in scans]
     finally:

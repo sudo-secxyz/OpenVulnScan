@@ -1,126 +1,78 @@
 {% extends "base.html" %}
+
 {% block content %}
-<title>OpenVulnScan</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            line-height: 1.6;
-        }
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-        }
-        h1 {
-            color: #2c3e50;
-            border-bottom: 2px solid #eee;
-            padding-bottom: 10px;
-        }
-        .scan-form {
-            background: #f7f7f7;
-            padding: 20px;
-            border-radius: 5px;
-            margin-bottom: 30px;
-        }
-        .scan-form input[type="text"] {
-            width: 60%;
-            padding: 8px;
-            margin-right: 10px;
-        }
-        .scan-form button {
-            padding: 8px 16px;
-            background: #3498db;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .scan-form button:hover {
-            background: #2980b9;
-        }
-        .scan-list {
-            list-style: none;
-            padding: 0;
-        }
-        .scan-item {
-            padding: 15px;
-            border-bottom: 1px solid #eee;
-        }
-        .scan-item:hover {
-            background: #f9f9f9;
-        }
-        .scan-link {
-            text-decoration: none;
-            color: #3498db;
-            font-weight: bold;
-        }
-        .scan-info {
-            color: #7f8c8d;
-            font-size: 0.9em;
-        }
-    </style>
-<body>
-    <div class="container">
-        <h1>OpenVulnScan</h1>
-        
-        <div class="scan-form">
-            <h2>Start New Scan</h2>
-            <form id="scanForm">
-                <input type="text" id="targets" placeholder="Enter IP addresses or hostnames (comma separated)" required>
-                <button type="submit">Start Scan</button>
-            </form>
+<div class="container mx-auto px-4 py-6">
+    <!-- Overview Section -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="bg-white shadow rounded-lg p-4">
+            <h3 class="text-lg font-semibold text-gray-700">Total Scans</h3>
+            <p class="text-2xl font-bold text-indigo-600">{{ total_scans }}</p>
         </div>
-        
-        <h2>Scan History</h2>
-        <ul class="scan-list">
-            {% for scan in scans %}
-            <li class="scan-item">
-                <a href="/scan/{{ scan['scan_id'] }}" class="scan-link">Scan {{ scan['scan_id'][:8] }}...</a>
-                <div class="scan-info">
-                    Target(s): {{ scan.scan_targets | join(', ') }}<br>
-                    Started: {{ scan.started_at }}
-                    {% if scan.completed_at %}
-                    | Completed: {{ scan.completed_at }}
-                    {% else %}
-                    | <span style="color: #e74c3c;">In progress</span>
-                    {% endif %}
-                </div>
-            </li>
-            {% endfor %}
-        </ul>
+        <div class="bg-white shadow rounded-lg p-4">
+            <h3 class="text-lg font-semibold text-gray-700">Completed Scans</h3>
+            <p class="text-2xl font-bold text-green-600">{{ completed_scans }}</p>
+        </div>
+        <div class="bg-white shadow rounded-lg p-4">
+            <h3 class="text-lg font-semibold text-gray-700">Active Scans</h3>
+            <p class="text-2xl font-bold text-yellow-600">{{ active_scans }}</p>
+        </div>
     </div>
 
-    <script>
-        document.getElementById('scanForm').addEventListener('submit', async function(e) {
-            e.preventDefault();  
-            
-            const targetsInput = document.getElementById('targets').value;
-            const targets = targetsInput.split(',').map(t => t.trim()).filter(t => t);
-            
-            if (targets.length === 0) {
-                alert('Please enter at least one target');
-                return;
-            }
-            
-            try {
-                const response = await fetch('/scan', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ targets })
-                });
-                
-                if (response.ok) {
-                    const result = await response.json();
-                    window.location.href = `/scan/${result.id}`;
-                } else {
-                    alert('Error starting scan');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Error starting scan');
-            }
-        });
-    </script>
+    <!-- Critical Vulnerabilities -->
+    <div class="bg-white shadow rounded-lg p-4 mb-6">
+        <h3 class="text-lg font-semibold text-gray-700">Critical Vulnerabilities</h3>
+        <p class="text-2xl font-bold text-red-600">{{ critical_vulnerabilities }}</p>
+    </div>
+
+    <!-- Recent Scans -->
+    <div class="bg-white shadow rounded-lg p-4 mb-6">
+        <h3 class="text-lg font-semibold text-gray-700">Recent Scans</h3>
+        <table class="table-auto w-full text-sm text-left text-gray-700">
+            <thead class="bg-gray-100">
+                <tr>
+                    <th class="px-4 py-2">Scan ID</th>
+                    <th class="px-4 py-2">Targets</th>
+                    <th class="px-4 py-2">Status</th>
+                    <th class="px-4 py-2">Started At</th>
+                    <th class="px-4 py-2">Completed At</th>
+                    <th class="px-4 py-2">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for scan in recent_scans %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-2">{{ scan.id }}</td>
+                    <td class="px-4 py-2">{{ scan.target  }}</td>
+                    <td class="px-4 py-2">
+                        {% if scan.status == "completed" %}
+                        <span class="text-green-600 font-semibold">{{ scan.status }}</span>
+                        {% elif scan.status == "running" %}
+                        <span class="text-yellow-600 font-semibold">{{ scan.status }}</span>
+                        {% else %}
+                        <span class="text-gray-600 font-semibold">{{ scan.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-2">{{ scan.created_at }}</td>
+                    <td class="px-4 py-2">{{ scan.completed_at or "N/A" }}</td>
+                    <td class="px-4 py-2">
+                        <a href="/scan/{{ scan.id }}" class="text-blue-600 underline">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="bg-white shadow rounded-lg p-4">
+        <h3 class="text-lg font-semibold text-gray-700">Quick Actions</h3>
+        
+        <div class="mt-4">
+            <a href="/schedule-scan" class="text-blue-600 underline">Schedule a Scan</a> |
+            <a href="/dashboard" class="text-blue-600 underline">View Dashboard</a> |
+            <a href="/create-scan" class="text-blue-600 underline">Create a Scan</a> |
+            <a href="/scans" class="text-blue-600 underline">View Scan History</a>
+        </div>
+    </div>
+</div>
 {% endblock %}
