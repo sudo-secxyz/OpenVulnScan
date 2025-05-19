@@ -1,4 +1,3 @@
-# docker-compose.linux.yml
 version: '3.8'
 
 services:
@@ -6,7 +5,7 @@ services:
     image: ghcr.io/zaproxy/zaproxy:stable
     container_name: openvulnscan-zap
     command: >
-      zap.sh -daemon -port 8080 -host 0.0.0.0 
+      zap.sh -daemon -port 8090 -host 0.0.0.0 
       -config api.disablekey=true 
       -config api.addrs.addr.name=.* 
       -config api.addrs.addr.regex=true 
@@ -23,9 +22,8 @@ services:
       - JAVA_OPTS="-Xmx4g"
       - ZAP_DOCKER_ALLOW_HOST=true
     network_mode: host
-    ports: []        # Prevents trying to bind ports with host mode
+    ports: []  # No ports need to be exposed in host mode
 
-  
   web:
     build:
       context: .
@@ -33,7 +31,7 @@ services:
     command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - .:/app
-      - zap_results:/app/data/zap_results  # Shared volume for ZAP results
+      - zap_results:/app/data/zap_results
     ports:
       - "8000:8000"
     environment:
@@ -49,6 +47,7 @@ services:
     container_name: openvulnscan-redis
     ports:
       - "6379:6379"
+
   worker:
     build:
       context: .
@@ -56,14 +55,13 @@ services:
     command: celery -A celery_app worker --loglevel=info
     volumes:
       - .:/app
-      - zap_results:/app/data/zap_results  # Shared volume for ZAP results
+      - zap_results:/app/data/zap_results
     networks:
       - default
-      - scan_net
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - ZAP_API_URL=http://zap:8080
+      - ZAP_API_URL=http://localhost:8090  # host mode allows direct localhost access
     depends_on:
       - redis
       - zap
@@ -75,7 +73,9 @@ services:
     command: celery -A celery_app beat --loglevel=info
     volumes:
       - .:/app
-      - zap_results:/app/data/zap_results  # Shared volume for ZAP results
+      - zap_results:/app/data/zap_results
+    networks:
+      - default
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -84,21 +84,8 @@ services:
       - worker
 
 volumes:
-  zap_results:  # Define the shared volume
+  zap_results:
 
 networks:
   default:
     driver: bridge
-  scan_net:
-    driver: bridge
-    driver_opts:
-      com.docker.network.driver.mtu: "1500"
-      com.docker.network.bridge.enable_ip_masquerade: "true"
-      com.docker.network.bridge.enable_icc: "true"
-    ipam:
-      config:
-        - subnet: 172.168.100.0/24
-          gateway: 172.168.100.1
-    internal: false
-
-
