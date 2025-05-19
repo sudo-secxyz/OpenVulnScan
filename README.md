@@ -18,12 +18,12 @@ A simple vulnerability scanning application built with FastAPI.
    if running via docker:
    Windows:
    ```bash
-   docker compose -f docker-compose.yml -f docker-compose.winmac.yml up --build
+   docker compose -f docker-compose.winmac.yml up --build
    ```
 
    Linux:
    ```cmd
-   docker compose -f docker-compose.yml -f docker-compose.linux.yml up --build
+   docker compose -f docker-compose.linux.yml up --build
    ```
 
 3. Access the web interface:

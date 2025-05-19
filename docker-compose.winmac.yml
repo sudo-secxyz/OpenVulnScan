@@ -1,18 +1,112 @@
+version: '3.8'
+
 services:
   zap:
-    networks:
-      - default
-      - scan_net
+    image: ghcr.io/zaproxy/zaproxy:stable
+    container_name: openvulnscan-zap
+    command: >
+      zap.sh -daemon -port 8090 -host 0.0.0.0 
+      -config api.disablekey=true 
+      -config api.addrs.addr.name=.* 
+      -config api.addrs.addr.regex=true 
+      -config connection.timeoutInSecs=600
+      -config network.localhost.proxy.excludeRegex=true 
+      -config network.general.dnsTtlSuccessfulQueries=-1
+    volumes:
+      - zap_results:/zap/wrk
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - NET_BIND_SERVICE
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      - JAVA_OPTS="-Xmx4g"
+      - ZAP_DOCKER_ALLOW_HOST=true
     ports:
-      - "8080:8080"
-  worker:
+      - "8090:8090"  # expose ZAP for external access
     networks:
       - default
       - scan_net
 
+  web:
+    build:
+      context: .
+    container_name: openvulnscan-web
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+      - zap_results:/app/data/zap_results
+    ports:
+      - "8000:8000"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - ZAP_RESULTS_DIR=/app/data/zap_results
+    depends_on:
+      - redis
+      - worker
+    networks:
+      - default
+
+  redis:
+    image: redis:7
+    container_name: openvulnscan-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - default
+
+  worker:
+    build:
+      context: .
+    container_name: openvulnscan-worker
+    command: celery -A celery_app worker --loglevel=info
+    volumes:
+      - .:/app
+      - zap_results:/app/data/zap_results
+    networks:
+      - default
+      - scan_net
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - ZAP_API_URL=http://zap:8090
+    depends_on:
+      - redis
+      - zap
+
+  beat:
+    build:
+      context: .
+    container_name: openvulnscan-beat
+    command: celery -A celery_app beat --loglevel=info
+    volumes:
+      - .:/app
+      - zap_results:/app/data/zap_results
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - worker
+    networks:
+      - default
+
+volumes:
+  zap_results:
+
 networks:
   default:
-    external: false
-  scan_net:
-    external: false
     driver: bridge
+  scan_net:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: "1500"
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+      com.docker.network.bridge.enable_icc: "true"
+    ipam:
+      config:
+        - subnet: 172.168.100.0/24
+          gateway: 172.168.100.1
+    internal: false
