@@ -1,3 +1,4 @@
+#docker-compose.yml
 services:
   web:
     build:
@@ -40,8 +41,6 @@ services:
       - NET_ADMIN
       - NET_RAW
       - NET_BIND_SERVICE
-    security_opt:
-      - seccomp:unconfined
     environment:
       - JAVA_OPTS="-Xmx4g"
       - ZAP_DOCKER_ALLOW_HOST=true
