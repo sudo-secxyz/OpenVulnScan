@@ -31,7 +31,7 @@ from utils.settings import get_system_timezone
 logger = setup_logging()
 
 # ZAP configuration
-ZAP_API_URL = "http://zap:8080"
+ZAP_API_URL = "http://zap:8090"
 ZAP_API_KEY = ""
 zap = ZAPv2(apikey=ZAP_API_KEY, proxies={'http': ZAP_API_URL, 'https': ZAP_API_URL})
 
