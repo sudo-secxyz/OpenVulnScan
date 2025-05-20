@@ -1,6 +1,7 @@
 # utils/tasks.py
 
 import json
+import requests
 import os
 import re
 import subprocess
@@ -45,34 +46,40 @@ def normalize_url(target: str) -> str:
         return urlunparse(("http", parsed.netloc or parsed.path, "", "", "", ""))
     return target
 
-def validate_target_url(url: str) -> bool:
-    """Validate if the target URL is accessible"""
-    try:
-        parsed = urlparse(url)
-        hostname = parsed.netloc or parsed.path
-        
-        # First try a basic connection check
-        result = subprocess.run(
-            ["ping", "-n", "1", "-w", "1000", hostname],
-            capture_output=True,
-            text=True
-        )
-        
-        if result.returncode != 0:
-            logger.warning(f"Target {hostname} is not responding to ping")
-            return False
-            
-        # Then try ZAP spider
-        response = zap.spider.scan(url)
-        if response and response != "url_not_found":
-            return True
-            
-        logger.warning(f"Target {url} is not accessible via ZAP spider")
-        return False
-        
-    except Exception as e:
-        logger.error(f"Error validating target URL {url}: {e}")
-        return False
+
+def validate_target_url(zap: ZAPv2, base_url: str) -> str | None:
+    """
+    Validate the target URL by checking accessibility via HTTPS and HTTP.
+    If the URL does not start with http/https, try both schemes.
+    Returns the first working URL, or None if inaccessible.
+    """
+    session = requests.Session()
+    session.verify = False  # In case of self-signed certs
+
+    schemes = []
+    parsed = urlparse(base_url)
+
+    if parsed.scheme:
+        # If scheme is given (http or https), try it as-is
+        schemes.append(parsed.scheme)
+    else:
+        # Try https first, then http
+        schemes = ['https', 'http']
+
+    hostname = parsed.hostname or base_url
+
+    for scheme in schemes:
+        test_url = f"{scheme}://{hostname}"
+        try:
+            resp = session.get(test_url, timeout=5)
+            if resp.status_code < 400:
+                # Ask ZAP to start crawling this URL
+                zap.spider.scan(test_url)
+                return test_url
+        except Exception as e:
+            continue  # Try the next scheme
+
+    return None
 
 def run_parallel_scans(scan_id, targets):
     """Run Nmap scans in parallel for multiple targets."""
