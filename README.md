@@ -31,6 +31,12 @@ A simple vulnerability scanning application built with FastAPI.
    ![alt text](image-4.png)
    ![alt text](image-1.png)
    ![alt text](image-2.png)
+   ### New Features
+   1) New Dashboard searching
+   ![alt text](image.png)
+   2) New Scan Types[discovery, full, web]
+   ![alt text](image-5.png)
+   
 ### API Docs
 ![alt text](image-3.png)
 ## Features
@@ -40,6 +46,8 @@ A simple vulnerability scanning application built with FastAPI.
 - Download PDF reports of scan findings
 - User management
 - Deployable agent to report installed packages to central OpenVulnScan server
+- Dashboard searching(posibbly report creation)
+- Scan Types
 
 ---
 
@@ -52,6 +60,7 @@ A simple vulnerability scanning application built with FastAPI.
 | 🧾 Download PDF Report | `/scan/{scan_id}/pdf` |
 | 📥 Download Agent Script | `/agent/download?openvulnscan_api=http://<server>:8000/agent/report` |
 | 🗂 Agent Reports View | [http://localhost:8000/agent/reports](http://localhost:8000/agent/reports) |
+| Blog information | [https://sudo-sec.xyz/blog/tag/openvulnscan]
 
 ---
 
