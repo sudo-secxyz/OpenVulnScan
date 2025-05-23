@@ -60,7 +60,10 @@ A simple vulnerability scanning application built with FastAPI.
 | 🧾 Download PDF Report | `/scan/{scan_id}/pdf` |
 | 📥 Download Agent Script | `/agent/download?openvulnscan_api=http://<server>:8000/agent/report` |
 | 🗂 Agent Reports View | [http://localhost:8000/agent/reports](http://localhost:8000/agent/reports) |
-| Blog information | [https://sudo-sec.xyz/blog/tag/openvulnscan]
+| Blog information | [https://sudo-sec.xyz/blog/tag/openvulnscan]|
+| User Guide| [https://sudo-sec.xyz/blog/openvulnscan-user-guide] |
+| Admin Guide | [https://sudo-sec.xyz/blog/openvulnscan-admin-guide] |
+|KB for OpenVulnScan| [https://sudo-sec.xyz/blog/tag/openvulnscan] |
 
 ---
 
