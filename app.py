@@ -276,6 +276,7 @@ import json
 import requests
 import socket
 import platform
+import distro
 
 OPENVULNSCAN_API = "{base_url}/agent/report"
 
@@ -285,21 +286,24 @@ def get_installed_packages():
         packages = []
 
         if system == "linux":
-            distro = platform.linux_distribution()[0].lower()
-            if "debian" in distro or "ubuntu" in distro:
+            distro_name = distro.id().lower()
+            if "debian" in distro_name or "ubuntu" in distro_name:
                 packages = get_debian_packages()
-            elif "red hat" in distro or "centos" in distro or "fedora" in distro:
+            elif "rhel" in distro_name or "centos" in distro_name or "fedora" in distro_name:
                 packages = get_redhat_packages()
+            else:
+                print(f"Unsupported Linux distribution: {distro_name}")
         elif system == "darwin":
             packages = get_macos_packages()
         elif system == "windows":
             packages = get_windows_packages()
         else:
-            print(f"Unsupported operating system: {{system}}")
+            print(f"Unsupported operating system: {system}")
         return packages
     except Exception as e:
-        print(f"Error detecting system packages: {{e}}")
+        print(f"Error detecting system packages: {e}")
         return []
+
 
 def get_debian_packages():
     try:
