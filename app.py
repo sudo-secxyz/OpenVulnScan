@@ -270,7 +270,7 @@ def get_agent_report(agent_id: int, db: Session = Depends(get_db), user: BasicUs
 @app.get("/agent/download", response_class=Response)
 def download_agent(request: Request):
     base_url = str(request.base_url).rstrip("/")
-    agent_code = f'''\
+    agent_code = f'''
 import subprocess
 import json
 import requests
@@ -289,19 +289,22 @@ def get_installed_packages():
             distro_name = distro.id().lower()
             if "debian" in distro_name or "ubuntu" in distro_name:
                 packages = get_debian_packages()
+            elif "kali" in distro_name:
+                packages = get_debian_packages()  # Kali is based on Debian
             elif "rhel" in distro_name or "centos" in distro_name or "fedora" in distro_name:
                 packages = get_redhat_packages()
             else:
-                print(f"Unsupported Linux distribution: {distro_name}")
+                print(f"Unsupported Linux distribution: {{distro_name}}")
+                
         elif system == "darwin":
             packages = get_macos_packages()
         elif system == "windows":
             packages = get_windows_packages()
         else:
-            print(f"Unsupported operating system: {system}")
+            print(f"Unsupported operating system: {{system}}")
         return packages
     except Exception as e:
-        print(f"Error detecting system packages: {e}")
+        print(f"Error detecting system packages: {{e}}")
         return []
 
 
