@@ -23,7 +23,6 @@ services:
       - ZAP_DOCKER_ALLOW_HOST=true
       - ZAP_API_URL=http://localhost:8090
     network_mode: host
-    ports: []  # No ports need to be exposed in host mode
 
   web:
     build:
@@ -33,8 +32,6 @@ services:
     volumes:
       - .:/app
       - zap_results:/app/data/zap_results
-    ports:
-      - "8000:8000"
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -43,6 +40,7 @@ services:
     depends_on:
       - redis
       - worker
+    network_mode: host
 
   redis:
     image: redis:7
@@ -58,8 +56,6 @@ services:
     volumes:
       - .:/app
       - zap_results:/app/data/zap_results
-    networks:
-      - default
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -67,6 +63,7 @@ services:
     depends_on:
       - redis
       - zap
+    network_mode: host
 
   beat:
     build:
