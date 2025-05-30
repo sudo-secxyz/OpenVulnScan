@@ -27,6 +27,8 @@ from services.scan_service import run_scan as rs
 from utils.get_system_time import get_system_timezone
 from scanners.nmap_runner import NmapRunner
 from utils.settings import get_system_timezone
+from utils.syslog import send_syslog_message
+from database.db_manager import get_db
 
 
 logger = setup_logging()
@@ -137,6 +139,15 @@ def get_scan_status(scan_id=None):
 
 # === Celery Tasks ===
 
+def scan_to_dict(scan):
+    return {
+        "id": scan.id,
+        "targets": scan.targets,
+        "status": scan.status,
+        "started_at": str(scan.started_at),
+        "completed_at": str(scan.completed_at)
+    }
+
 @shared_task
 def run_scan(scan_data: dict):
     """
@@ -175,10 +186,12 @@ def run_scan(scan_data: dict):
             db_scan.status = 'completed'
             db_scan.completed_at = datetime.now(pytz.timezone(get_system_timezone()))
             db.commit()
+            
     except Exception as e:
         logger.error(f"Error saving findings or updating scan status: {e}", exc_info=True)
         db.rollback()
     finally:
+        send_syslog_message(json.dumps(findings), db)
         db.close()
 
     enrich_cve_descriptions()
@@ -215,6 +228,7 @@ def process_scheduled_scans():
             # Reschedule for one week later (customize as needed)
             sscan.start_datetime = now + timedelta(days=7)
             db.commit()
+            send_syslog_message(json.dumps(targets), db)
     except Exception as e:
         logger.error(f"Error in processing scheduled scans: {e}", exc_info=True)
         db.rollback()
@@ -229,6 +243,7 @@ def run_nmap_discovery(scan_id: int, target: str):
     session = SessionLocal()
     try:
         scan = session.query(Scan).filter(Scan.id == scan_id).first()
+        
         if not scan:
             logger.error(f"Nmap discovery scan ID {scan_id} not found.")
             return
@@ -254,10 +269,18 @@ def run_nmap_discovery(scan_id: int, target: str):
             if ip:
                 discovery = DiscoveryHost(ip_address=ip, status=status, scan_id=scan.id)
                 session.add(discovery)
-
+        send_syslog_message(json.dumps({
+            "id": scan.id,
+            "targets": scan.targets,
+            "status": scan.status,
+            "started_at": str(scan.started_at),
+            "completed_at": str(scan.completed_at)
+        }), session)        
         scan.status = "completed"
         scan.completed_at = datetime.utcnow()
         session.commit()
+        
+        
     except Exception as e:
         logger.error(f"Error during Nmap discovery scan {scan_id}: {e}", exc_info=True)
         if scan:
@@ -286,6 +309,14 @@ def run_nmap_scan(scan_id: str, target: str):
         findings = nmap_runner.run()
 
         run_scan.delay({"scan_id": scan_id, "targets": [target]})
+        send_syslog_message(json.dumps({
+            "id": scan.id,
+            "targets": scan.targets,
+            "status": scan.status,
+            "started_at": str(scan.started_at),
+            "completed_at": str(scan.completed_at),
+            "findings": findings
+        }), session)
 
     except Exception as e:
         logger.error(f"Error during Nmap scan for {scan_id}: {e}", exc_info=True)
@@ -386,7 +417,7 @@ def run_zap_scan(scan_id: int, zap_output_path: str = None, target_url: str = No
         # Save results to file
         with open(zap_output_path, "w") as f:
             json.dump(findings, f)
-
+        
         # Update scan record
         scan.raw_data = findings
         scan.status = "completed"
@@ -403,6 +434,7 @@ def run_zap_scan(scan_id: int, zap_output_path: str = None, target_url: str = No
                 description="\n".join(v['description'] for v in finding['vulnerabilities'])
             )
             session.add(db_finding)
+            send_syslog_message(json.dumps(finding), session)
         session.commit()
 
     except Exception as e:

@@ -11,11 +11,12 @@ from models.package import Package
 from models.cve import CVE
 from models.users import User
 from utils import cve_checker
+from utils.syslog import send_syslog_message
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from itsdangerous import URLSafeSerializer
 from auth.dependencies import require_authentication, get_current_user, cookie_signer
-
+import json
 
 # Initialize router and session serializer
 router = APIRouter()
@@ -58,6 +59,15 @@ async def submit_agent_report(request: Request, payload: dict, db: Session = Dep
                 severity=severity,
                 package_id=package.id
             ))
+            send_syslog_message(json.dumps({   
+                "cve_id": cve_id,
+                "package_name": name,
+                "version": version,
+                "severity": severity,
+                "summary": summary
+            }),db
+                
+            )
 
     db.commit()
     return {"detail": "Agent report submitted successfully", "report_id": report.id}

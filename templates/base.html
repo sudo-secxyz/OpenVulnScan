@@ -36,7 +36,8 @@
       <a href="/settings" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Settings</a>
       {% if current_user.role == "admin" %}
         <a href="/admin/users" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">User Management</a>
-      {% endif %}
+        <a href="/siem/config/ui" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">SIEM Configuration</a>
+        {% endif %}
       <a href="/logout" class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100">Logout</a>
     </div>
   </div>
