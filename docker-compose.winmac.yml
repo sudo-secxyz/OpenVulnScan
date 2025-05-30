@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   zap:
     image: ghcr.io/zaproxy/zaproxy:stable
@@ -23,6 +21,7 @@ services:
     environment:
       - JAVA_OPTS="-Xmx4g"
       - ZAP_DOCKER_ALLOW_HOST=true
+      - ZAP_API_URL=http://zap:8090
     ports:
       - "8090:8090"  # expose ZAP for external access
     networks:
@@ -43,6 +42,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - ZAP_RESULTS_DIR=/app/data/zap_results
+      - ZAP_API_URL=http://zap:8090
     depends_on:
       - redis
       - worker

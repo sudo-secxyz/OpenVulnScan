@@ -34,7 +34,7 @@ from database.db_manager import get_db
 logger = setup_logging()
 
 # ZAP configuration
-ZAP_API_URL = "http://zap:8090"
+ZAP_API_URL = os.getenv("ZAP_API_URL", "http://localhost:8090")
 ZAP_API_KEY = ""
 zap = ZAPv2(apikey=ZAP_API_KEY, proxies={'http': ZAP_API_URL, 'https': ZAP_API_URL})
 
@@ -399,7 +399,8 @@ def run_zap_scan(scan_id: int, zap_output_path: str = None, target_url: str = No
 
         # Get scan results
         alerts = zap.core.alerts(baseurl=normalized_target)
-        
+        if isinstance(target_url, list):
+            target_url = target_url[0]
         # Format results similar to nmap findings
         findings = [{
             "ip": target_url,
