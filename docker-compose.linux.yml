@@ -21,6 +21,7 @@ services:
     environment:
       - JAVA_OPTS="-Xmx4g"
       - ZAP_DOCKER_ALLOW_HOST=true
+      - ZAP_API_URL=http://localhost:8090
     network_mode: host
     ports: []  # No ports need to be exposed in host mode
 
@@ -38,6 +39,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - ZAP_RESULTS_DIR=/app/data/zap_results
+      - ZAP_API_URL=http://localhost:8090
     depends_on:
       - redis
       - worker
