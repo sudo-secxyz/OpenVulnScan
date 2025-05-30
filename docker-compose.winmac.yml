@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   zap:
     image: ghcr.io/zaproxy/zaproxy:stable
