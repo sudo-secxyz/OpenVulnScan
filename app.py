@@ -11,7 +11,9 @@ import datetime
 import models
 from sqlalchemy import func
 
+
 from utils.background import handle_scan
+from utils.syslog import send_syslog_message
 from database.base import Base
 from database.db_manager import engine, SessionLocal, get_db
 from database.ops import get_all_scans, get_scan as gs, init_db, get_cve_by_id
@@ -41,6 +43,7 @@ from uuid import uuid4
 from itsdangerous import URLSafeSerializer
 # Auth Routers
 from auth.google import router as google_auth
+from routes.siem import router as siem_router
 from auth.local import router as local_auth
 from auth.dependencies import require_authentication, COOKIE_NAME, get_current_user, cookie_signer
 
@@ -109,7 +112,7 @@ def create_default_admin():
     from sqlalchemy import inspect
     inspector = inspect(engine)
     print("Existing tables:", inspector.get_table_names())
-
+    
     db: Session = SessionLocal()
     admin_email = "admin@openvulnscan.local"
     if not db.query(User).filter_by(email=admin_email).first():
@@ -135,7 +138,6 @@ def index(request: Request, db: Session = Depends(get_db), user: BasicUser = Dep
     total_scans = db.query(func.count(Scan.id)).scalar()
     completed_scans = db.query(func.count(Scan.id)).filter(Scan.status == "completed").scalar()
     active_scans = db.query(func.count(Scan.id)).filter(Scan.status == "running").scalar()
-
     # Recent scans
     recent_scans = db.query(Scan).order_by(Scan.started_at.desc()).limit(5).all()
 
@@ -174,6 +176,13 @@ async def create_scan(scan_request: ScanRequest, db: Session = Depends(get_db)):
     else:
         run_scan.apply_async(args=[task_args])
     logger.info(f"Queuing task for scan {scan_id} with targets: {scan_request.targets}")
+    # Send syslog message for scan start
+    send_syslog_message(json.dumps({
+        "scan_id": scan_id,
+        "targets": scan_request.targets,   
+        "status": status,
+        "scheduled_for": scan_request.scheduled_for.isoformat() if scan_request.scheduled_for else None
+        }), db)
     # Return the response with findings
     return ScanTaskResponse(
         id=scan_id,
@@ -377,6 +386,7 @@ if __name__ == "__main__":
 app.include_router(protected_router)
 app.include_router(dashboard_router)
 app.include_router(scan_router)
+app.include_router(siem_router) 
 
 
 @app.exception_handler(HTTPException)
