@@ -31,6 +31,7 @@ A simple vulnerability scanning application built with FastAPI.
    ![alt text](image-4.png)
    ![alt text](image-1.png)
    ![alt text](image-2.png)
+   ![alt text](image-6.png)
    ### New Features
    1) New Dashboard searching
    ![alt text](image.png)
@@ -48,6 +49,7 @@ A simple vulnerability scanning application built with FastAPI.
 - Deployable agent to report installed packages to central OpenVulnScan server
 - Dashboard searching(posibbly report creation)
 - Scan Types
+- syslog forwarding(alpha-testing)
 
 ---
 
