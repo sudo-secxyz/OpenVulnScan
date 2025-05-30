@@ -1,16 +1,14 @@
-version: '3.8'
-
 services:
   zap:
     image: ghcr.io/zaproxy/zaproxy:stable
     container_name: openvulnscan-zap
     command: >
-      zap.sh -daemon -port 8090 -host 0.0.0.0 
-      -config api.disablekey=true 
-      -config api.addrs.addr.name=.* 
-      -config api.addrs.addr.regex=true 
+      zap.sh -daemon -port 8090 -host 0.0.0.0
+      -config api.disablekey=true
+      -config api.addrs.addr.name=.*
+      -config api.addrs.addr.regex=true
       -config connection.timeoutInSecs=600
-      -config network.localhost.proxy.excludeRegex=true 
+      -config network.localhost.proxy.excludeRegex=true
       -config network.general.dnsTtlSuccessfulQueries=-1
     volumes:
       - zap_results:/zap/wrk
@@ -21,8 +19,7 @@ services:
     environment:
       - JAVA_OPTS="-Xmx4g"
       - ZAP_DOCKER_ALLOW_HOST=true
-      - ZAP_API_URL=http://localhost:8090
-    network_mode: host
+      - ZAP_API_URL=http://zap:8090
 
   web:
     build:
@@ -36,11 +33,12 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - ZAP_RESULTS_DIR=/app/data/zap_results
-      - ZAP_API_URL=http://localhost:8090
+      - ZAP_API_URL=http://zap:8090
     depends_on:
       - redis
       - worker
-    network_mode: host
+    ports:
+      - "8000:8000"
 
   redis:
     image: redis:7
@@ -59,11 +57,10 @@ services:
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - ZAP_API_URL=http://localhost:8090  # host mode allows direct localhost access
+      - ZAP_API_URL=http://zap:8090
     depends_on:
       - redis
       - zap
-    network_mode: host
 
   beat:
     build:
@@ -73,8 +70,6 @@ services:
     volumes:
       - .:/app
       - zap_results:/app/data/zap_results
-    networks:
-      - default
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -84,7 +79,3 @@ services:
 
 volumes:
   zap_results:
-
-networks:
-  default:
-    driver: bridge
