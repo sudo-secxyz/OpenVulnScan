@@ -52,6 +52,15 @@ A simple vulnerability scanning application built with FastAPI.
 - syslog forwarding(alpha-testing)
 
 ---
+## Default Login
+the default account is:
+:warning:
+```
+admin@openvulnscan.local
+   : admin123
+```
+:warning:
+:warning: **change after standing up.**  :warning:
 
 ## Web Interface Links
 
