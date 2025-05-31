@@ -1,4 +1,4 @@
-fastapi==0.109.1
+fastapi==0.115.0
 uvicorn==0.23.2
 pydantic==2.4.0
 Jinja2==3.1.6
@@ -10,10 +10,10 @@ authlib==1.5.0
 python-dotenv
 sqlalchemy
 aiosqlite
-httpx
+httpx==0.27.0
 passlib
 itsdangerous
-starlette
+starlette==0.38
 celery[redis]
 redis
 pytz
