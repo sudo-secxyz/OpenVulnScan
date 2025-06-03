@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Asset Details: {{ asset.ip_address }}{% if asset.hostname %} ({{ asset.hostname }}){% endif %}</h2>
+<p><strong>Last Scanned:</strong> {{ asset.last_scanned.strftime('%Y-%m-%d %H:%M:%S') if asset.last_scanned else 'Never' }}</p>
+
+<h3>Current Agent Data</h3>
+{% if agent_reports %}
+    <ul>
+    {% for report in agent_reports %}
+        <li>
+            <strong>Time:</strong> {{ report.created_at }}<br>
+            <strong>Data:</strong> <pre>{{ report.data | tojson(indent=2) }}</pre>
+        </li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p>No agent data available.</p>
+{% endif %}
+
+<h3>Web Alerts</h3>
+{% if web_alerts %}
+    <ul>
+    {% for alert in web_alerts %}
+        <li>
+            <strong>Time:</strong> {{ alert.created_at }}<br>
+            <strong>Alert:</strong> {{ alert.description }}
+        </li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p>No web alerts.</p>
+{% endif %}
+
+<h3>Scan History</h3>
+{% if scans %}
+    <ul>
+    {% for scan in scans %}
+        <li>
+            <strong>Scan ID:</strong> <a href="/scan/{{ scan.id }}">{{ scan.id }}</a> |
+            <strong>Type:</strong> {{ scan.scan_type }} |
+            <strong>Status:</strong> {{ scan.status }} |
+            <strong>Started:</strong> {{ scan.started_at }} |
+            <strong>Completed:</strong> {{ scan.completed_at or "N/A" }}
+            {% if scan.findings %}
+                <br><strong>Findings:</strong>
+                <ul>
+                {% for finding in scan.findings %}
+                    <li>
+                        {{ finding.description or finding.raw_data }}
+                    </li>
+                {% endfor %}
+                </ul>
+            {% endif %}
+        </li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p>No scan history for this asset.</p>
+{% endif %}
+
+<h3>Vulnerabilities</h3>
+{% if vulnerabilities %}
+    <table>
+        <tr>
+            <th>Description</th>
+            <th>Severity</th>
+            <th>Remediation</th>
+        </tr>
+    {% for vuln in vulnerabilities %}
+        <tr>
+            <td>{{ vuln.description }}</td>
+            <td>{{ vuln.severity }}</td>
+            <td>
+              {% if vuln.remediation.startswith('http') %}
+                <a href="{{ vuln.remediation }}" target="_blank">Remediation Link</a>
+              {% else %}
+                {{ vuln.remediation }}
+              {% endif %}
+            </td>
+        </tr>
+    {% endfor %}
+    </table>
+{% else %}
+    <p>No vulnerabilities found for this asset.</p>
+{% endif %}
+{% endblock %}

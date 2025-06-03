@@ -7,6 +7,8 @@ import logging
 
 from sqlalchemy.orm import Session
 from database.db_manager import SessionLocal
+from services.asset_service import ensure_asset_exists
+from models.asset import Asset, Vulnerability
 from models.scan import Scan
 from models.finding import Finding
 from models.agent_report import AgentReport
@@ -22,7 +24,7 @@ def init_db():
     import models  # Ensure models are loaded
     Base.metadata.create_all(bind=engine)
 
-def insert_scan(scan_id: str, targets: list, started_at: datetime.datetime):
+def insert_scan(scan_id: str, targets: list, started_at: datetime.datetime, scan_type: str):
     db = SessionLocal()
     try:
         # Ensure targets is a list, whether it's passed as a string or already a list
@@ -37,12 +39,15 @@ def insert_scan(scan_id: str, targets: list, started_at: datetime.datetime):
         elif not isinstance(targets, list):
             logger.error("Targets is not a list or a valid JSON string")
             targets = []
-
+        primary_ip = targets[0] if isinstance(targets, list) and targets else targets
+        asset= ensure_asset_exists(primary_ip)
         new_scan = Scan(
             id=scan_id,
-            targets=targets,  # ✅ Directly pass the list, DO NOT json.dumps()
+            asset_id=asset,
+            targets=json.dumps(targets),
             started_at=started_at,
             completed_at=None,
+            scan_type=scan_type,  # <-- Use it here
             status='queued'
         )
         db.add(new_scan)

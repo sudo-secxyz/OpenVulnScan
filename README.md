@@ -32,11 +32,9 @@ A simple vulnerability scanning application built with FastAPI.
    ![alt text](image-1.png)
    ![alt text](image-2.png)
    ![alt text](image-6.png)
-   ### New Features
-   1) New Dashboard searching
    ![alt text](image.png)
-   2) New Scan Types[discovery, full, web]
    ![alt text](image-5.png)
+   
    
 ### API Docs
 ![alt text](image-3.png)
@@ -50,6 +48,7 @@ A simple vulnerability scanning application built with FastAPI.
 - Dashboard searching(posibbly report creation)
 - Scan Types
 - syslog forwarding(alpha-testing)
+- Detailed Asset listing
 
 ---
 ## Default Login

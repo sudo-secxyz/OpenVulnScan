@@ -2,44 +2,20 @@
 {% block content %}
 <h2>Assets</h2>
 {% for ip, data in assets.items() %}
-  <div class="asset-block">
-    <h3>{{ ip }}{% if data.hostname %} ({{ data.hostname }}){% endif %}</h3>
+  <div class="asset-block border p-4 mb-4 rounded shadow">
+    <div class="mb-2">
+      <strong>IP Address:</strong>
+      <span class="font-mono bg-blue-100 px-2 py-1 rounded text-blue-800 text-lg">
+        {{ ip }}
+      </span>
+      <a href="/assets/{{ ip }}" class="text-blue-600 underline">View Details</a>
+    </div>
+    <h3>
+      {% if data.hostname %}
+        <span class="text-gray-700">{{ data.hostname }}</span>
+      {% endif %}
+    </h3>
     <p><strong>Last Scanned:</strong> {{ data.last_scanned.strftime('%Y-%m-%d %H:%M:%S') if data.last_scanned else 'Never' }}</p>
-
-    <h4>Scan History:</h4>
-    {% if data.scans %}
-    <ul>
-      {% for scan in data.scans %}
-        <li>
-          <strong>Scan ID:</strong> 
-          <a href="/scans/{{ scan.id }}">{{ scan.id }}</a> |
-          <strong>Status:</strong> {{ scan.status | capitalize }} |
-          <strong>Findings:</strong> 
-          {% if scan.findings %}
-            {{ scan.findings | length }} item(s)
-          {% else %}
-            No findings
-          {% endif %}
-        </li>
-      {% endfor %}
-    </ul>
-    {% else %}
-      <p>No scans available.</p>
-    {% endif %}
-
-    <h4>Scheduled Scans:</h4>
-    {% if data.scheduled %}
-    <ul>
-      {% for sscan in data.scheduled %}
-        <li>
-          <strong>Next Run:</strong> {{ sscan.start_datetime.strftime('%Y-%m-%d %H:%M:%S') }} |
-          <strong>Frequency:</strong> {{ sscan.days }} day(s)
-        </li>
-      {% endfor %}
-    </ul>
-    {% else %}
-      <p>No scheduled scans.</p>
-    {% endif %}
   </div>
 {% endfor %}
 {% endblock %}

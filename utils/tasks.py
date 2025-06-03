@@ -9,7 +9,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, urlunparse
-
+from services.asset_service import ensure_asset_exists
 import pytz
 from zapv2 import ZAPv2
 
@@ -22,7 +22,7 @@ from models.finding import Finding
 from models.scheduled_scan import ScheduledScan
 from models.scan import Scan
 from models.web_alert import WebAlert
-from services.cve_service import get_cve_description
+from services.cve_service import get_cve_details
 from services.scan_service import run_scan as rs
 from utils.get_system_time import get_system_timezone
 from scanners.nmap_runner import NmapRunner
@@ -114,10 +114,18 @@ def enrich_cve_descriptions():
         cves = session.query(CVE).filter(CVE.summary == None).all()
         logger.info(f"Found {len(cves)} CVEs missing descriptions")
         for cve in cves:
+            for attempt in range(3):
+                details = get_cve_details(cve.cve_id.strip())
+                if details.get("error") == 429:
+                    time.sleep(10)  # Wait 10 seconds and retry
+                    continue
+                break
+
             try:
-                description = get_cve_description(cve.cve_id.strip())
-                if description:
-                    cve.summary = description
+                if details and details["description"]:
+                    cve.summary = details["description"]
+                    cve.severity = details.get("severity")
+                    cve.remediation = details.get("remediation")
                     session.add(cve)
                 else:
                     logger.warning(f"No description found for CVE {cve.cve_id}")
@@ -159,7 +167,8 @@ def run_scan(scan_data: dict):
     logger.info(f"Running scan {scan_id} on targets: {targets}")
 
     findings = run_parallel_scans(scan_id, targets)
-
+    for target in targets:
+        ensure_asset_exists(target, last_scanned=datetime.utcnow())
     # Ensure findings is a flat list
     if any(isinstance(f, list) for f in findings):
         findings = [item for sublist in findings for item in sublist]
@@ -220,9 +229,12 @@ def process_scheduled_scans():
             logger.info(f"Queuing scheduled scan {sscan.id} for execution")
             scan_id = f"scheduled-{sscan.id}-{now.strftime('%Y%m%d%H%M%S')}"
             targets = sscan.get_targets()
+            for target in targets:
+                ensure_asset_exists(target, last_scanned=datetime.utcnow())
             if isinstance(targets, str):
                 targets = json.loads(targets)
-            insert_scan(scan_id, targets, now)
+            scan_type = "full"  # or "discovery", "web", etc. -- set as appropriate
+            insert_scan(scan_id, targets, now, scan_type=scan_type)  # <-- Pass scan_type!
             run_scan.delay({"scan_id": scan_id, "targets": targets})
 
             # Reschedule for one week later (customize as needed)
@@ -243,13 +255,16 @@ def run_nmap_discovery(scan_id: int, target: str):
     session = SessionLocal()
     try:
         scan = session.query(Scan).filter(Scan.id == scan_id).first()
-        
         if not scan:
             logger.error(f"Nmap discovery scan ID {scan_id} not found.")
             return
         scan.status = "running"
         session.commit()
-
+        if isinstance(target, str):
+            ensure_asset_exists(target)
+        elif isinstance(target, list):
+            for t in target:
+                ensure_asset_exists(t)
         result = subprocess.run(
             ["nmap", "-sn", target, "-oX", "-"],
             capture_output=True, text=True
@@ -262,6 +277,7 @@ def run_nmap_discovery(scan_id: int, target: str):
 
         import xml.etree.ElementTree as ET
         root = ET.fromstring(result.stdout)
+        discovered_hosts = []
         for host in root.findall("host"):
             status = host.find("status").get("state")
             addr = host.find("address")
@@ -269,18 +285,22 @@ def run_nmap_discovery(scan_id: int, target: str):
             if ip:
                 discovery = DiscoveryHost(ip_address=ip, status=status, scan_id=scan.id)
                 session.add(discovery)
+                discovered_hosts.append({"ip": ip, "status": status})
+
+        # Save discovered hosts to scan.raw_data
+        scan.raw_data = discovered_hosts
+        scan.status = "completed"
+        scan.completed_at = datetime.utcnow()
+        session.commit()
+
         send_syslog_message(json.dumps({
             "id": scan.id,
             "targets": scan.targets,
             "status": scan.status,
             "started_at": str(scan.started_at),
-            "completed_at": str(scan.completed_at)
-        }), session)        
-        scan.status = "completed"
-        scan.completed_at = datetime.utcnow()
-        session.commit()
-        
-        
+            "completed_at": str(scan.completed_at),
+            "discovered_hosts": discovered_hosts
+        }), session)
     except Exception as e:
         logger.error(f"Error during Nmap discovery scan {scan_id}: {e}", exc_info=True)
         if scan:
@@ -304,11 +324,25 @@ def run_nmap_scan(scan_id: str, target: str):
         scan.status = "running"
         session.commit()
 
-        logger.info(f"Running Nmap scan for target: {target}")
-        nmap_runner = NmapRunner([target])
+        # Always decode scan.targets to a list
+        targets = scan.targets
+        if isinstance(targets, str):
+            try:
+                targets = json.loads(targets)
+            except Exception:
+                targets = [targets]
+        logger.info(f"Decoded targets for scan {scan_id}: {targets} (type: {type(targets)})")
+        logger.info(f"Running Nmap scan for targets: {targets}")
+
+        nmap_runner = NmapRunner(targets)  # Pass the full list
         findings = nmap_runner.run()
 
-        run_scan.delay({"scan_id": scan_id, "targets": [target]})
+        for t in targets:
+            ensure_asset_exists(t)
+
+        # Pass all targets to run_scan
+        run_scan.delay({"scan_id": scan_id, "targets": targets})
+
         send_syslog_message(json.dumps({
             "id": scan.id,
             "targets": scan.targets,

@@ -19,6 +19,7 @@ class Scan(Base):
     __tablename__ = "scans"
 
     id = Column(String, primary_key=True, index=True)
+    asset_id = Column(Integer, ForeignKey("assets.id"), nullable=False)  # Link to Asset
     targets = Column(String)  # List of target
     scan_type = Column(String, nullable=False)  # e.g., 'nmap', 'zap', 'discovery'
     raw_data = Column(JSON, nullable=True)  # Store consolidated scan results
@@ -33,7 +34,7 @@ class Scan(Base):
     # Existing relationships
     findings = relationship("Finding", back_populates="scan", cascade="all, delete")
     scan_targets = relationship("ScanTarget", back_populates="scan", cascade="all, delete")
-
+    asset = relationship("Asset", back_populates="scans")
     # New relationships
     discovered_hosts = relationship("DiscoveryHost", back_populates="scan", cascade="all, delete")
     web_alerts = relationship("WebAlert", back_populates="scan", cascade="all, delete")
