@@ -42,7 +42,13 @@
                 {% for scan in recent_scans %}
                 <tr class="hover:bg-gray-50">
                     <td class="px-4 py-2">{{ scan.id }}</td>
-                    <td class="px-4 py-2">{{ scan.target  }}</td>
+                    <td class="px-4 py-2">
+                    {% if scan.targets is string %}
+                        {{ scan.targets }}
+                    {% else %}
+                        {{ scan.targets | join(', ') }}
+                    {% endif %}
+                    </td>
                     <td class="px-4 py-2">
                         {% if scan.status == "completed" %}
                         <span class="text-green-600 font-semibold">{{ scan.status }}</span>

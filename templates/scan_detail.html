@@ -57,7 +57,14 @@
                 <ul>
                 {% for cve in finding.cve_data %}
                     <li>
-                        <strong>{{ cve.cve_id }}</strong>: {{ cve.summary }}
+                        <strong>{{ cve.cve_id }}</strong>: {{ cve.summary }}<br>
+                        <em>Severity:</em> {{ cve.severity }}<br>
+                        <em>Remediation:</em>
+                        {% if cve.remediation.startswith('http') %}
+                            <a href="{{ cve.remediation }}" target="_blank">Remediation Link</a>
+                        {% else %}
+                            {{ cve.remediation }}
+                        {% endif %}
                     </li>
                 {% endfor %}
                 </ul>
@@ -70,4 +77,43 @@
         {% endfor %}
     </tbody>
 </table>
+<h3>Vulnerabilities Details</h3>
+<table class="table-auto border-collapse border border-gray-300 w-full">
+    <thead class="bg-gray-100">
+        <tr>
+            <th class="border px-4 py-2">CVE ID</th>
+            <th class="border px-4 py-2">Description</th>
+            <th class="border px-4 py-2">Severity</th>
+            <th class="border px-4 py-2">Remediation</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for finding in result.findings %}
+            {% if finding.raw_data.vulnerabilities %}
+                {% for vuln in finding.raw_data.vulnerabilities %}
+                    <tr>
+                        <td class="border px-4 py-2">{{ vuln.id }}</td>
+                        <td class="border px-4 py-2">{{ vuln.description }}</td>
+                        <td class="border px-4 py-2">{{ vuln.severity or "N/A" }}</td>
+                        <td class="border px-4 py-2">
+                          {% if vuln.remediation %}
+                            <a href="{{ vuln.remediation }}" target="_blank">Remediation Link</a>
+                          {% else %}
+                            N/A
+                          {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            {% endif %}
+        {% endfor %}
+    </tbody>
+</table>
+{% if result.raw_data and result.scan_type == "discovery" %}
+  <h3>Discovered Hosts</h3>
+  <ul>
+    {% for host in result.raw_data %}
+      <li>{{ host.ip }} ({{ host.status }})</li>
+    {% endfor %}
+  </ul>
+{% endif %}
 {% endblock %}

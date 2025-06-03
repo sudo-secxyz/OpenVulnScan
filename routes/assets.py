@@ -3,10 +3,18 @@ from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.templating import Jinja2Templates
 from database.db_manager import SessionLocal, get_db
 from models.scan import Scan
+from models.cve import CVE
 from models.scheduled_scan import ScheduledScan
+from models.agent_report import AgentReport
+from models.finding import Finding
+from models.web_alert import WebAlert
+from models.asset import Asset
+from fastapi.responses import HTMLResponse
 from auth.dependencies import get_current_user, BasicUser
 from sqlalchemy.orm import selectinload, joinedload, Session
 
+import ast
+import json
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -22,9 +30,25 @@ def get_assets(request: Request, user: BasicUser = Depends(get_current_user)):
     asset_dict = {}
 
     for scan in scans:
-        for target in scan.targets:
+        targets = scan.targets
+        # Always decode JSON string to list
+        if isinstance(targets, str):
+            try:
+                targets = json.loads(targets)
+            except Exception:
+                targets = [targets]
+        # Now targets is a list of IPs
+        for target in targets:
+            if not target or not isinstance(target, str) or target.strip() in {"", "[", "]", ".", '"', "'"}:
+                continue
             if target not in asset_dict:
-                asset_dict[target] = {"scans": [], "scheduled": []}
+                asset = db.query(Asset).filter(Asset.ip_address == target).first()
+                asset_dict[target] = {
+                    "scans": [],
+                    "scheduled": [],
+                    "hostname": asset.hostname if asset else "",
+                    "last_scanned": asset.last_scanned if asset else None
+                }
             asset_dict[target]["scans"].append(scan)
 
     for sscan in scheduled_scans:
@@ -49,3 +73,42 @@ def get_finding(finding_id: int, db: Session = Depends(get_db)):
     if not finding:
         raise HTTPException(status_code=404, detail="Finding not found")
     return finding
+
+@router.get("/assets/{ip_address}", response_class=HTMLResponse)
+def asset_detail(ip_address: str, request: Request, user=Depends(get_current_user)):
+    db = SessionLocal()
+    try:
+        asset = db.query(Asset).filter(Asset.ip_address == ip_address).first()
+        if not asset:
+            return HTMLResponse(f"<h2>Asset {ip_address} not found</h2>", status_code=404)
+
+        scans = db.query(Scan).options(joinedload(Scan.findings)).filter(Scan.targets.like(f'%{ip_address}%')).order_by(Scan.started_at.desc()).all()
+        agent_reports = db.query(AgentReport).filter(AgentReport.target_ip == ip_address).order_by(AgentReport.created_at.desc()).all()
+        scan_ids = [scan.id for scan in scans]
+        web_alerts = db.query(WebAlert).filter(WebAlert.scan_id.in_(scan_ids)).order_by(WebAlert.id.desc()).all()
+
+        # Attach CVE details to each finding in each scan
+        for scan in scans:
+            if scan.raw_data and isinstance(scan.raw_data, str):
+                try:
+                    scan.raw_data = json.loads(scan.raw_data)
+                except Exception:
+                    scan.raw_data = []
+            if scan.raw_data:
+                for finding in scan.raw_data:
+                    for vuln in finding.get("vulnerabilities", []):
+                        cve = db.query(CVE).filter(CVE.cve_id == vuln["id"]).first()
+                        vuln["summary"] = cve.summary if cve and cve.summary else "No summary available"
+                        vuln["severity"] = cve.severity if cve and cve.severity else "N/A"
+                        vuln["remediation"] = cve.remediation if cve and cve.remediation else "N/A"
+
+        return templates.TemplateResponse("asset_detail.html", {
+            "request": request,
+            "asset": asset,
+            "scans": scans,
+            "agent_reports": agent_reports,
+            "web_alerts": web_alerts,
+            "current_user": user,
+        })
+    finally:
+        db.close()

@@ -11,9 +11,10 @@ class CVE(Base):
 
     cve_id = Column(String, nullable=False)
     summary = Column(Text, nullable=True)
-    finding_id = Column(Integer, ForeignKey('findings.id'))
     severity = Column(String, nullable=True)  # e.g., "low", "medium", "high"
+    remediation = Column(Text, nullable=True) # <-- Add this line
+    finding_id = Column(Integer, ForeignKey('findings.id'))
+    package_id = Column(Integer, ForeignKey("packages.id"))
 
-    package_id = Column(Integer, ForeignKey("packages.id"))  # This is correct
     package = relationship("Package", back_populates="cves")
     finding = relationship("Finding", back_populates="cves")
