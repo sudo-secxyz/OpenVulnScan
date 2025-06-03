@@ -17,45 +17,39 @@
         <tr>
             <th class="border px-4 py-2">IP Address</th>
             <th class="border px-4 py-2">Hostname</th>
-            <th class="border px-4 py-2">Open Ports</th>
-            <th class="border px-4 py-2">Vulnerabilities (CVEs)</th>
+            <th class="border px-4 py-2">Port</th>
+            <th class="border px-4 py-2">CVE ID</th>
+            <th class="border px-4 py-2">Description</th>
+            <th class="border px-4 py-2">Severity</th>
+            <th class="border px-4 py-2">Remediation</th>
         </tr>
     </thead>
     <tbody>
-        {% if scan.raw_data %}
-            {% for finding in scan.raw_data %}
-                <tr class="hover:bg-gray-50">
+        {% for finding in scan.raw_data %}
+            {% for vuln in finding.vulnerabilities %}
+                <tr>
                     <td class="border px-4 py-2">{{ finding.ip }}</td>
                     <td class="border px-4 py-2">{{ finding.hostname }}</td>
                     <td class="border px-4 py-2">
                         {% if finding.open_ports %}
-                            <ul>
-                                {% for port in finding.open_ports %}
-                                    <li>{{ port.port }}/{{ port.protocol }} - {{ port.service }}</li>
-                                {% endfor %}
-                            </ul>
+                            {{ finding.open_ports | map(attribute='port') | join(', ') }}
                         {% else %}
-                            No open ports
+                            N/A
                         {% endif %}
                     </td>
+                    <td class="border px-4 py-2">{{ vuln.id }}</td>
+                    <td class="border px-4 py-2">{{ vuln.description }}</td>
+                    <td class="border px-4 py-2">{{ vuln.severity or "N/A" }}</td>
                     <td class="border px-4 py-2">
-                        {% if finding.vulnerabilities %}
-                            <ul>
-                                {% for vuln in finding.vulnerabilities %}
-                                    <li>{{ vuln.id }}: {{ vuln.description }} - {{ vuln.summary }}</li>
-                                {% endfor %}
-                            </ul>
+                        {% if vuln.remediation and vuln.remediation.startswith('http') %}
+                            <a href="{{ vuln.remediation }}" target="_blank">Remediation Link</a>
                         {% else %}
-                            No vulnerabilities
+                            {{ vuln.remediation or "N/A" }}
                         {% endif %}
                     </td>
                 </tr>
             {% endfor %}
-        {% else %}
-            <tr>
-                <td colspan="5" class="border px-4 py-2 text-center">No findings available</td>
-            </tr>
-        {% endif %}
+        {% endfor %}
     </tbody>
 </table>
 

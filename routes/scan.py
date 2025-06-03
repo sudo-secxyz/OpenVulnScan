@@ -6,6 +6,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.status import HTTP_303_SEE_OTHER
 from utils.tasks import run_nmap_discovery, run_nmap_scan, run_zap_scan
 from database.db_manager import SessionLocal, get_db
+from services.asset_service import ensure_asset_exists
 from models.scan import Scan, ScanTask
 from models.schemas import ScanCreate
 from config import ZAP_RESULTS_DIR
@@ -54,12 +55,13 @@ async def create_scan(
         targets = [target]
     else:
         targets = target
-
-    # Serialize targets as JSON
     serialized_targets = json.dumps(targets)
-
+    # Save serialized_targets to Scan.targets
+    primary_ip = targets[0] if isinstance(targets, list) and targets else targets
+    asset = ensure_asset_exists(primary_ip)
     scan = Scan(
         id=scan_id,
+        asset_id = asset,
         targets=serialized_targets,  # Save as a JSON string
         status="pending",
         created_at=datetime.datetime.utcnow(),
@@ -78,7 +80,7 @@ async def create_scan(
     elif scan_type == "web":
         # Normalize the target URL
         normalized_target = normalize_url(target)
-
+        
         # Generate the ZAP output path
         zap_output_path = os.path.join(ZAP_RESULTS_DIR, f"{scan_id}.json")
         task = ScanTask(scan_id=scan_id, name="WebScan", status="pending")

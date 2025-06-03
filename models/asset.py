@@ -24,3 +24,6 @@ class Asset(Base):
     last_scanned = Column(DateTime, nullable=False)
     
     vulnerabilities = relationship("Vulnerability", back_populates="asset")
+    scans = relationship("Scan", back_populates="asset")
+    
+    agent_reports = relationship("AgentReport", back_populates="asset")

@@ -201,29 +201,22 @@ def scan_detail(scan_id: str, request: Request, user: BasicUser = Depends(get_cu
         scan = db.query(Scan).filter(Scan.id == scan_id).first()
         if not scan:
             raise HTTPException(status_code=404, detail="Scan not found")
-        # Deserialize targets
         scan.targets = json.loads(scan.targets)
-        # Ensure raw_data is initialized
         if scan.raw_data is None:
             scan.raw_data = []
-
-        # Deserialize raw_data if it's a JSON string
         if isinstance(scan.raw_data, str):
             try:
                 scan.raw_data = json.loads(scan.raw_data)
             except json.JSONDecodeError:
-                logger.error(f"Failed to deserialize raw_data for scan {scan_id}")
                 scan.raw_data = []
 
-        logger.debug(f"Processed raw_data for scan {scan_id}: {scan.raw_data}")
-
-        # Iterate over findings in raw_data
+        # Attach CVE details (severity, remediation) to each vulnerability
         for finding in scan.raw_data:
-            if isinstance(finding, dict):  # Ensure each finding is a dictionary
-                for vuln in finding.get("vulnerabilities", []):
-                    cve = get_cve_by_id(db, vuln["id"])
-                    logger.debug(f"Fetched CVE {vuln['id']} with summary: {cve.summary if cve else 'Not found'}")
-                    vuln["summary"] = cve.summary if cve and cve.summary else "No summary available"
+            for vuln in finding.get("vulnerabilities", []):
+                cve = get_cve_by_id(db, vuln["id"])
+                vuln["summary"] = cve.summary if cve and cve.summary else "No summary available"
+                vuln["severity"] = cve.severity if cve and cve.severity else "N/A"
+                vuln["remediation"] = cve.remediation if cve and cve.remediation else "N/A"
 
         return templates.TemplateResponse("scan_result.html", {
             "request": request,

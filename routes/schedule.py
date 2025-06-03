@@ -104,7 +104,9 @@ def view_scan_history(request: Request, user: BasicUser = Depends(get_current_us
 def scan_detail(request: Request, scan_id: str, user: BasicUser = Depends(get_current_user)):
     db = SessionLocal()
     try:
-        result = db.query(Scan).options(joinedload(Scan.findings).joinedload(Finding.cves)).filter(Scan.id == scan_id).first()
+        result = db.query(Scan).options(
+            joinedload(Scan.findings).joinedload(Finding.cves)
+        ).filter(Scan.id == scan_id).first()
         if not result:
             sanitized_scan_id = html.escape(scan_id)
             return HTMLResponse(f"<h1>Scan ID {sanitized_scan_id} not found</h1>", status_code=404)
@@ -122,7 +124,12 @@ def scan_detail(request: Request, scan_id: str, user: BasicUser = Depends(get_cu
 
             # CVEs already loaded by joinedload
             finding.cve_data = [
-                {"cve_id": cve.cve_id, "summary": cve.summary or "No description available"} 
+                {
+                    "cve_id": cve.cve_id,
+                    "summary": cve.summary or "No description available",
+                    "severity": cve.severity or "N/A",
+                    "remediation": cve.remediation or "N/A"
+                }
                 for cve in finding.cves
             ]
     finally:
