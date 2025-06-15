@@ -40,7 +40,7 @@ class NmapRunner:
             cmd.extend(options)
         else:
             # Default options if none specified
-            cmd.extend(["-sV", "--script=vulners","--top-ports","100","-T4","-A","-R"])  # Version detection and vulnerability scanning
+            cmd.extend(["-sV", "--script=vulners","-p-","-T4","-A","-R"])  # Version detection and vulnerability scanning
             
         # Add targets
         cmd.append(target_str)
