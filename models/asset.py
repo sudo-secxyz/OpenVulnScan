@@ -1,5 +1,5 @@
 # models/asset.py
-from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from database.base import Base
 
@@ -21,6 +21,9 @@ class Asset(Base):
     id = Column(Integer, primary_key=True)
     ip_address = Column(String, nullable=False)
     hostname = Column(String, nullable=False, default='')
+    os = Column(String, nullable=True)
+    services = Column(JSON, nullable=True)
+    webtech = Column(JSON, nullable=True)
     last_scanned = Column(DateTime, nullable=False)
     
     vulnerabilities = relationship("Vulnerability", back_populates="asset")

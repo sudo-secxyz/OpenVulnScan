@@ -4,6 +4,9 @@ import re
 import ipaddress
 import xml.etree.ElementTree as ET
 from typing import List, Dict, Any, Union, Optional
+from utils.webtech import whatweb_fingerprint
+from services.update_asset import update_asset
+
 
 
 class NmapRunner:
@@ -40,7 +43,7 @@ class NmapRunner:
             cmd.extend(options)
         else:
             # Default options if none specified
-            cmd.extend(["-sV", "--script=vulners","-p-","-T4","-A","-R"])  # Version detection and vulnerability scanning
+            cmd.extend(["-sV", "-O", "--script=vulners","--top-ports","500","-T4","-A","-R"])  # Version detection and vulnerability scanning
             
         # Add targets
         cmd.append(target_str)
@@ -92,6 +95,10 @@ class NmapRunner:
                             "protocol": port.get("protocol"),
                             "service": port.find('./service').get('name', 'unknown')
                         })
+                
+                # OS detection
+                os_elem = host.find('.//osmatch')
+                os_name = os_elem.get('name') if os_elem is not None else None
 
                 vulnerabilities = []
                 for script in host.findall('.//script'):
@@ -105,15 +112,32 @@ class NmapRunner:
                                 "id": cve,
                                 "description": f"Detected by vulners script: {cve}"
                             })
-
-
+                services = []
+                for port in host.findall(".//port"):
+                    state = port.find("state")
+                    if state is not None and state.get("state") == "open":
+                        service = port.find("service")
+                        services.append({
+                            "port": int(port.get("portid")),
+                            "service": service.get("name") if service is not None else "",
+                            "product": service.get("product") if service is not None else ""
+                        })
+                webtech = None
+                for svc in services:
+                    if svc["service"] in ("http", "https"):
+                        web_tech = whatweb_fingerprint(f"http://{addr}")
+                        break
+                update_asset(addr, os_name, services, web_tech=web_tech)
                 results.append({
                     "ip": addr,
                     "hostname": hostname,
+                    "os": os_name,
                     "open_ports": open_ports,
-                    "vulnerabilities": vulnerabilities
+                    "vulnerabilities": vulnerabilities,
+                    "services": services,
+                    "web_tech": web_tech
                 })
-
+            
             return results
 
         except ET.ParseError:

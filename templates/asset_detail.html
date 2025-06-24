@@ -51,6 +51,16 @@
                 {% endfor %}
                 </ul>
             {% endif %}
+            {% if scan.asset %}
+            <strong>OS:</strong> {{ asset.os }}<br>
+            <strong>Services:</strong>
+            <ul>
+            {% for svc in asset.services %}
+            <li>{{ svc.port }}/{{ svc.service }} - {{ svc.product }}</li>
+            {% endfor %}
+            </ul>
+            {% else %}
+            {% endif %}
         </li>
     {% endfor %}
     </ul>
@@ -83,4 +93,6 @@
 {% else %}
     <p>No vulnerabilities found for this asset.</p>
 {% endif %}
+
+
 {% endblock %}
