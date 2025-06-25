@@ -6,6 +6,9 @@ import xml.etree.ElementTree as ET
 from typing import List, Dict, Any, Union, Optional
 from utils.webtech import whatweb_fingerprint
 from services.update_asset import update_asset
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -47,7 +50,10 @@ class NmapRunner:
             cmd.extend(options)
         else:
             # Default options if none specified
-            cmd.extend(["-sV", "-O", "--script=vulners", self.ports ,"-T4","-A","-R"])  # Version detection and vulnerability scanning
+            cmd.extend(["-sV", "-O", "--script=vulners"])
+            if self.ports:
+                cmd.extend(["-p", str(self.ports)])
+            cmd.extend(["-T4", "-A", "-R"])  # Version detection and vulnerability scanning
             
         # Add targets
         cmd.append(target_str)
@@ -64,7 +70,8 @@ class NmapRunner:
             stdout, stderr = process.communicate()
             
             if process.returncode != 0:
-                return [f"Nmap scan failed: {stderr}"]
+                logger.error(f"Nmap scan failed: {stderr}")
+                return []
                 
             # Parse the output to get findings
             return self._parse_nmap_output(stdout)
@@ -126,7 +133,7 @@ class NmapRunner:
                             "service": service.get("name") if service is not None else "",
                             "product": service.get("product") if service is not None else ""
                         })
-                webtech = None
+                web_tech = None
                 for svc in services:
                     if svc["service"] in ("http", "https"):
                         web_tech = whatweb_fingerprint(f"http://{addr}")

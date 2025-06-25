@@ -12,6 +12,9 @@ from models.asset import Asset
 from fastapi.responses import HTMLResponse
 from auth.dependencies import get_current_user, BasicUser
 from sqlalchemy.orm import selectinload, joinedload, Session
+from config import setup_logging
+
+logger = setup_logging()
 
 import ast
 import json
@@ -96,6 +99,9 @@ def asset_detail(ip_address: str, request: Request, user=Depends(get_current_use
                     scan.raw_data = []
             if scan.raw_data:
                 for finding in scan.raw_data:
+                    if not isinstance(finding, dict):
+                        logger.error(f"Skipping finding because it is not a dict: {finding}")
+                        continue
                     for vuln in finding.get("vulnerabilities", []):
                         cve = db.query(CVE).filter(CVE.cve_id == vuln["id"]).first()
                         vuln["summary"] = cve.summary if cve and cve.summary else "No summary available"

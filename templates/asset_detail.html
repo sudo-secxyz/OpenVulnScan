@@ -51,15 +51,14 @@
                 {% endfor %}
                 </ul>
             {% endif %}
-            {% if scan.asset %}
-            <strong>OS:</strong> {{ asset.os }}<br>
-            <strong>Services:</strong>
+            {% if asset.services %}
             <ul>
             {% for svc in asset.services %}
-            <li>{{ svc.port }}/{{ svc.service }} - {{ svc.product }}</li>
+                <li>{{ svc.port }}/{{ svc.service }} - {{ svc.product }}</li>
             {% endfor %}
             </ul>
             {% else %}
+            <p>No service data available.</p>
             {% endif %}
         </li>
     {% endfor %}
