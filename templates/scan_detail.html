@@ -93,15 +93,19 @@
                 {% for vuln in finding.raw_data.vulnerabilities %}
                     <tr>
                         <td class="border px-4 py-2">{{ vuln.id }}</td>
-                        <td class="border px-4 py-2">{{ vuln.description }}</td>
-                        <td class="border px-4 py-2">{{ vuln.severity or "N/A" }}</td>
                         <td class="border px-4 py-2">
-                          {% if vuln.remediation %}
-                            <a href="{{ vuln.remediation }}" target="_blank">Remediation Link</a>
-                          {% else %}
-                            N/A
-                          {% endif %}
+                            <strong>Summary:</strong> {{ vuln.summary }}<br>
+                            <strong>Description:</strong> {{ vuln.description }}
                         </td>
+                        <td class="border px-4 py-2">{{ vuln.severity }}</td>
+                        <td class="border px-4 py-2">
+                            {% if vuln.remediation %}
+                                <a href="{{ vuln.remediation }}" target="_blank">Remediation Link</a>
+                            {% else %}
+                                "N/A"
+                            {% endif %}
+                        </td>
+                        <td class="border px-4 py-2">{{ finding.os_info }}</td>
                     </tr>
                 {% endfor %}
             {% endif %}

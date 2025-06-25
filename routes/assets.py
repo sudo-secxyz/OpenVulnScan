@@ -102,11 +102,19 @@ def asset_detail(ip_address: str, request: Request, user=Depends(get_current_use
                     if not isinstance(finding, dict):
                         logger.error(f"Skipping finding because it is not a dict: {finding}")
                         continue
+                    # Attach OS info if present
+                    os_info = finding.get("os") or finding.get("os_info") or "Unknown"
+                    finding["os_info"] = os_info
+
+                    # Attach CVE details to each vulnerability
                     for vuln in finding.get("vulnerabilities", []):
-                        cve = db.query(CVE).filter(CVE.cve_id == vuln["id"]).first()
+                        cve_id = vuln.get("cve_id")
+                        cve = db.query(CVE).filter(CVE.cve_id == cve_id).first()
                         vuln["summary"] = cve.summary if cve and cve.summary else "No summary available"
-                        vuln["severity"] = cve.severity if cve and cve.severity else "N/A"
-                        vuln["remediation"] = cve.remediation if cve and cve.remediation else "N/A"
+                        vuln["description"] = cve.description if cve and cve.description else vuln.get("description", "")
+                        vuln["severity"] = vuln.get("severity", cve.severity if cve else "N/A")
+                        vuln["remediation"] = vuln.get("remediation", cve.remediation if cve else "No remediation available")
+                        vuln["port"] = vuln.get("port", finding.get("port", "N/A"))
 
         return templates.TemplateResponse("asset_detail.html", {
             "request": request,

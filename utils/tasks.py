@@ -336,10 +336,14 @@ def run_nmap_scan(scan_id: str, target: str, ports: str = None):
                 targets = [targets]
         logger.info(f"Decoded targets for scan {scan_id}: {targets} (type: {type(targets)})")
         logger.info(f"Running Nmap scan for targets: {targets}")
-
-        nmap_runner = NmapRunner(targets, ports=ports)  # Pass the full list
-        findings = nmap_runner.run()
-
+        try:
+            nmap_runner = NmapRunner(targets, ports=ports)  # Pass the full list
+            findings = nmap_runner.run()
+        except Exception as e:
+            logger.error(f"Error running Nmap scan for targets {targets}: {e}", exc_info=True)
+            scan.status = "failed"
+            session.commit()
+            return
         for t in targets:
             ensure_asset_exists(t)
 

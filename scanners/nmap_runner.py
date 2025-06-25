@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Union, Optional
 from utils.webtech import whatweb_fingerprint
 from services.update_asset import update_asset
 import logging
+import shutil
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,11 @@ class NmapRunner:
         target_str = ','.join(self.targets)
         
         # Build the nmap command with XML output for easier parsing
-        cmd = ["nmap", "-oX", "-"]  # Output XML to stdout
+        nmap_path = shutil.which("nmap")
+        if nmap_path is None:
+            raise FileNotFoundError("Nmap executable not found. Please ensure Nmap is installed and in your PATH.")
+        
+        cmd = [nmap_path, "-oX", "-"]  # Output XML to stdout
         
         # Add user specified options if provided
         if options:
@@ -52,7 +57,7 @@ class NmapRunner:
             # Default options if none specified
             cmd.extend(["-sV", "-O", "--script=vulners"])
             if self.ports:
-                cmd.extend(["-p", str(self.ports)])
+                cmd.extend(["-p", f"{str(self.ports)}"])
             cmd.extend(["-T4", "-A", "-R"])  # Version detection and vulnerability scanning
             
         # Add targets
@@ -77,9 +82,12 @@ class NmapRunner:
             return self._parse_nmap_output(stdout)
             
         except FileNotFoundError:
-            return ["Error: Nmap not found. Please ensure Nmap is installed and in your PATH."]
+            logger.error("Nmap not found.")
+            raise RuntimeError("Nmap not found. Please ensure Nmap is installed and in your PATH.")
+
         except Exception as e:
-            return [f"Error executing Nmap scan: {str(e)}"]
+            logger.error(f"Error executing Nmap scan: {str(e)}")
+            return [{"error": f"Error executing Nmap scan: {str(e)}"}]
     
     def _parse_nmap_output(self, output: str) -> List[Dict[str, Any]]:
         results = []
