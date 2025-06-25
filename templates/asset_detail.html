@@ -71,21 +71,30 @@
 {% if vulnerabilities %}
     <table>
         <tr>
-            <th>Description</th>
+            <th>ID</th>
+            <th>Details</th>
+            <th>Port</th>
             <th>Severity</th>
             <th>Remediation</th>
+            <th>OS Info</th>
         </tr>
     {% for vuln in vulnerabilities %}
         <tr>
-            <td>{{ vuln.description }}</td>
+            <td>{{ vuln.id }}</td>
+            <td>
+                <strong>Summary:</strong> {{ vuln.summary }}<br>
+                <strong>Description:</strong> {{ vuln.description }}
+            </td>
+            <td>{{ vuln.port }}</td>
             <td>{{ vuln.severity }}</td>
             <td>
-              {% if vuln.remediation.startswith('http') %}
+              {% if vuln.remediation %}
                 <a href="{{ vuln.remediation }}" target="_blank">Remediation Link</a>
               {% else %}
-                {{ vuln.remediation }}
+                "N/A"
               {% endif %}
             </td>
+            <td>{{ finding.os_info }}</td>
         </tr>
     {% endfor %}
     </table>
