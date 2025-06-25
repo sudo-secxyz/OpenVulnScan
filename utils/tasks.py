@@ -178,6 +178,9 @@ def run_scan(scan_data: dict):
     db = SessionLocal()
     try:
         for finding in findings:
+            if not isinstance(finding, dict):
+                logger.error(f"Skipping finding because it is not a dict: {finding}")
+                continue
             db_finding = Finding(
                 scan_id=scan_id,
                 ip_address=finding.get("ip"),
