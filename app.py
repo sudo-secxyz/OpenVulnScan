@@ -212,7 +212,14 @@ def scan_detail(scan_id: str, request: Request, user: BasicUser = Depends(get_cu
 
         # Attach CVE details (severity, remediation) to each vulnerability
         for finding in scan.raw_data:
-            for vuln in finding.get("vulnerabilities", []):
+            if isinstance(finding, dict):
+                vulns = finding.get("vulnerabilities", [])
+            elif isinstance(finding, list):
+                vulns = finding  # or handle as needed
+            else:
+                vulns = []
+                # Now you can process vulns
+            for vuln in vulns:
                 cve = get_cve_by_id(db, vuln["id"])
                 vuln["summary"] = cve.summary if cve and cve.summary else "No summary available"
                 vuln["severity"] = cve.severity if cve and cve.severity else "N/A"
