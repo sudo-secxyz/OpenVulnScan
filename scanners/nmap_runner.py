@@ -10,7 +10,7 @@ from services.update_asset import update_asset
 
 
 class NmapRunner:
-    def __init__(self, targets: List[str]):
+    def __init__(self, targets: List[str], ports= None):
         """
         Initialize the NmapRunner with a list of target IPs or hostnames
         
@@ -18,6 +18,7 @@ class NmapRunner:
             targets: List of IP addresses, hostnames, or CIDR notations to scan
         """
         self.targets = targets
+        self.ports = ports
         
     def run(self, options: Optional[List[str]] = None) -> List[str]:
         """
@@ -31,6 +32,9 @@ class NmapRunner:
         """
         if not self.targets:
             return ["No targets specified"]
+        
+        if self.ports is None:
+            self.ports = "--top-ports 500"  # Default to top 1000 ports if none specified
             
         # Convert list of targets to comma-separated string
         target_str = ','.join(self.targets)
@@ -43,7 +47,7 @@ class NmapRunner:
             cmd.extend(options)
         else:
             # Default options if none specified
-            cmd.extend(["-sV", "-O", "--script=vulners","--top-ports","500","-T4","-A","-R"])  # Version detection and vulnerability scanning
+            cmd.extend(["-sV", "-O", "--script=vulners", self.ports ,"-T4","-A","-R"])  # Version detection and vulnerability scanning
             
         # Add targets
         cmd.append(target_str)
