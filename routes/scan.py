@@ -46,6 +46,7 @@ async def create_scan(
     request: Request,
     target: str = Form(...),
     scan_type: str = Form(...),
+    ports: str = Form(None),
     db: Session = Depends(get_db),
     user: BasicUser = Depends(get_current_user)
 ):
@@ -97,6 +98,6 @@ async def create_scan(
         task = ScanTask(scan_id=scan_id, name="FullScan", status="pending")
         db.add(task)
         db.commit()
-        run_nmap_scan.delay(scan_id, target)
+        run_nmap_scan.delay(scan_id, target, ports=ports)
 
     return templates.TemplateResponse("scan_queued.html", {"request": request, "scan": scan, "current_user": user})

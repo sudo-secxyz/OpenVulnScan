@@ -178,6 +178,9 @@ def run_scan(scan_data: dict):
     db = SessionLocal()
     try:
         for finding in findings:
+            if not isinstance(finding, dict):
+                logger.error(f"Skipping finding because it is not a dict: {finding}")
+                continue
             db_finding = Finding(
                 scan_id=scan_id,
                 ip_address=finding.get("ip"),
@@ -310,7 +313,7 @@ def run_nmap_discovery(scan_id: int, target: str):
         session.close()
 
 @shared_task
-def run_nmap_scan(scan_id: str, target: str):
+def run_nmap_scan(scan_id: str, target: str, ports: str = None):
     """
     Run full Nmap scan and hand off results to run_scan task.
     """
@@ -334,7 +337,7 @@ def run_nmap_scan(scan_id: str, target: str):
         logger.info(f"Decoded targets for scan {scan_id}: {targets} (type: {type(targets)})")
         logger.info(f"Running Nmap scan for targets: {targets}")
 
-        nmap_runner = NmapRunner(targets)  # Pass the full list
+        nmap_runner = NmapRunner(targets, ports=ports)  # Pass the full list
         findings = nmap_runner.run()
 
         for t in targets:

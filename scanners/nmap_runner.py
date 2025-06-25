@@ -4,10 +4,16 @@ import re
 import ipaddress
 import xml.etree.ElementTree as ET
 from typing import List, Dict, Any, Union, Optional
+from utils.webtech import whatweb_fingerprint
+from services.update_asset import update_asset
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 
 class NmapRunner:
-    def __init__(self, targets: List[str]):
+    def __init__(self, targets: List[str], ports= None):
         """
         Initialize the NmapRunner with a list of target IPs or hostnames
         
@@ -15,6 +21,7 @@ class NmapRunner:
             targets: List of IP addresses, hostnames, or CIDR notations to scan
         """
         self.targets = targets
+        self.ports = ports
         
     def run(self, options: Optional[List[str]] = None) -> List[str]:
         """
@@ -28,6 +35,9 @@ class NmapRunner:
         """
         if not self.targets:
             return ["No targets specified"]
+        
+        if self.ports is None:
+            self.ports = "1-1000"  # Default to top 1000 ports if none specified
             
         # Convert list of targets to comma-separated string
         target_str = ','.join(self.targets)
@@ -40,7 +50,10 @@ class NmapRunner:
             cmd.extend(options)
         else:
             # Default options if none specified
-            cmd.extend(["-sV", "--script=vulners","--top-ports","100","-T4","-A","-R"])  # Version detection and vulnerability scanning
+            cmd.extend(["-sV", "-O", "--script=vulners"])
+            if self.ports:
+                cmd.extend(["-p", str(self.ports)])
+            cmd.extend(["-T4", "-A", "-R"])  # Version detection and vulnerability scanning
             
         # Add targets
         cmd.append(target_str)
@@ -57,7 +70,8 @@ class NmapRunner:
             stdout, stderr = process.communicate()
             
             if process.returncode != 0:
-                return [f"Nmap scan failed: {stderr}"]
+                logger.error(f"Nmap scan failed: {stderr}")
+                return []
                 
             # Parse the output to get findings
             return self._parse_nmap_output(stdout)
@@ -92,6 +106,10 @@ class NmapRunner:
                             "protocol": port.get("protocol"),
                             "service": port.find('./service').get('name', 'unknown')
                         })
+                
+                # OS detection
+                os_elem = host.find('.//osmatch')
+                os_name = os_elem.get('name') if os_elem is not None else None
 
                 vulnerabilities = []
                 for script in host.findall('.//script'):
@@ -105,15 +123,32 @@ class NmapRunner:
                                 "id": cve,
                                 "description": f"Detected by vulners script: {cve}"
                             })
-
-
+                services = []
+                for port in host.findall(".//port"):
+                    state = port.find("state")
+                    if state is not None and state.get("state") == "open":
+                        service = port.find("service")
+                        services.append({
+                            "port": int(port.get("portid")),
+                            "service": service.get("name") if service is not None else "",
+                            "product": service.get("product") if service is not None else ""
+                        })
+                web_tech = None
+                for svc in services:
+                    if svc["service"] in ("http", "https"):
+                        web_tech = whatweb_fingerprint(f"http://{addr}")
+                        break
+                update_asset(addr, os_name, services, web_tech=web_tech)
                 results.append({
                     "ip": addr,
                     "hostname": hostname,
+                    "os": os_name,
                     "open_ports": open_ports,
-                    "vulnerabilities": vulnerabilities
+                    "vulnerabilities": vulnerabilities,
+                    "services": services,
+                    "web_tech": web_tech
                 })
-
+            
             return results
 
         except ET.ParseError:

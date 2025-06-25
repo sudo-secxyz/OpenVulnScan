@@ -4,6 +4,7 @@ services:
     build:
       context: .
     container_name: openvulnscan-web
+    restart: always
     command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - .:/app
@@ -22,12 +23,14 @@ services:
   redis:
     image: redis:7
     container_name: openvulnscan-redis
+    restart: always
     ports:
       - "6379:6379"
 
   zap:
     image: ghcr.io/zaproxy/zaproxy:stable
     container_name: openvulnscan-zap
+    restart: always
     command: >
       zap.sh -daemon -port 8080 -host 0.0.0.0 
       -config api.disablekey=true 
@@ -54,6 +57,7 @@ services:
     build:
       context: .
     container_name: openvulnscan-worker
+    restart: always
     command: celery -A celery_app worker --loglevel=info
     volumes:
       - .:/app
@@ -73,6 +77,7 @@ services:
     build:
       context: .
     container_name: openvulnscan-beat
+    restart: always
     command: celery -A celery_app beat --loglevel=info
     volumes:
       - .:/app
