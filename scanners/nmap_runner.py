@@ -34,7 +34,7 @@ class NmapRunner:
             return ["No targets specified"]
         
         if self.ports is None:
-            self.ports = "--top-ports 500"  # Default to top 1000 ports if none specified
+            self.ports = "1-1000"  # Default to top 1000 ports if none specified
             
         # Convert list of targets to comma-separated string
         target_str = ','.join(self.targets)
