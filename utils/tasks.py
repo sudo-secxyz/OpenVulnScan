@@ -286,12 +286,24 @@ def run_nmap_discovery(scan_id: int, target: str):
             addr = host.find("address")
             ip = addr.get("addr") if addr is not None else None
             if ip:
+                ensure_asset_exists(ip)
                 discovery = DiscoveryHost(ip_address=ip, status=status, scan_id=scan.id)
                 session.add(discovery)
                 discovered_hosts.append({"ip": ip, "status": status})
 
         # Save discovered hosts to scan.raw_data
         scan.raw_data = discovered_hosts
+        discovered_ips = [host["ip"] for host in discovered_hosts]
+        existing_targets = []
+        if isinstance(scan.targets, str):
+            try:
+                existing_targets = json.loads(scan.targets)
+            except Exception:
+                existing_targets = [scan.targets]
+        elif isinstance(scan.targets, list):
+            existing_targets = scan.targets
+        all_targets = list(set(existing_targets) | set(discovered_ips))
+        scan.targets = json.dumps(all_targets)  # Store as JSON string
         scan.status = "completed"
         scan.completed_at = datetime.utcnow()
         session.commit()
@@ -339,6 +351,26 @@ def run_nmap_scan(scan_id: str, target: str, ports: str = None):
         try:
             nmap_runner = NmapRunner(targets, ports=ports)  # Pass the full list
             findings = nmap_runner.run()
+            update_targets = set()
+            for finding in findings:
+                ip = finding.get("ip")
+                if ip:
+                    ensure_asset_exists(ip, last_scanned=datetime.utcnow())
+                    update_targets.add(ip)
+            scan = session.query(Scan).filter(Scan.id == scan_id).first()
+            if scan:
+                existing_tagets= []
+                if isinstance(scan.targets, str):
+                    try:
+                        existing_tagets = json.loads(scan.targets)
+                    except Exception:
+                        existing_tagets = [scan.targets]
+                elif isinstance(scan.targets, list):
+                    existing_tagets = scan.targets
+                all_targets = list(set(existing_tagets) | list(update_targets))
+
+                scan.targets = json.dumps(all_targets)  # Store as JSON string
+                session.commit()
         except Exception as e:
             logger.error(f"Error running Nmap scan for targets {targets}: {e}", exc_info=True)
             scan.status = "failed"

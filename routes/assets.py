@@ -26,45 +26,48 @@ templates = Jinja2Templates(directory="templates")
 @router.get("/assets")
 def get_assets(request: Request, user: BasicUser = Depends(get_current_user)):
     db = SessionLocal()
-    
-    scans = db.query(Scan).options(joinedload(Scan.findings)).all()
-    scheduled_scans = db.query(ScheduledScan).all()
+    search = request.query_params.get("search", "").strip().lower()
 
+    # Query all assets
+    assets = db.query(Asset).all()
     asset_dict = {}
 
+    for asset in assets:
+        if search:
+            if search not in asset.ip_address.lower() and (not asset.hostname or search not in asset.hostname.lower()):
+                continue
+        asset_dict[asset.ip_address] = {
+            "hostname": asset.hostname,
+            "last_scanned": asset.last_scanned,
+            "scans": [],
+            "scheduled": []
+        }
+
+    # Optionally, attach scans and scheduled scans to each asset
+    scans = db.query(Scan).options(joinedload(Scan.findings)).all()
     for scan in scans:
         targets = scan.targets
-        # Always decode JSON string to list
         if isinstance(targets, str):
             try:
                 targets = json.loads(targets)
             except Exception:
                 targets = [targets]
-        # Now targets is a list of IPs
         for target in targets:
-            if not target or not isinstance(target, str) or target.strip() in {"", "[", "]", ".", '"', "'"}:
-                continue
-            if target not in asset_dict:
-                asset = db.query(Asset).filter(Asset.ip_address == target).first()
-                asset_dict[target] = {
-                    "scans": [],
-                    "scheduled": [],
-                    "hostname": asset.hostname if asset else "",
-                    "last_scanned": asset.last_scanned if asset else None
-                }
-            asset_dict[target]["scans"].append(scan)
+            if target in asset_dict:
+                asset_dict[target]["scans"].append(scan)
 
+    scheduled_scans = db.query(ScheduledScan).all()
     for sscan in scheduled_scans:
         ip = sscan.target_ip
-        if ip not in asset_dict:
-            asset_dict[ip] = {"scans": [], "scheduled": []}
-        asset_dict[ip]["scheduled"].append(sscan)
+        if ip in asset_dict:
+            asset_dict[ip]["scheduled"].append(sscan)
 
     db.close()
     return templates.TemplateResponse("assets.html", {
         "request": request,
         "assets": asset_dict,
         "current_user": user,
+        "search": search,
     })
 
 from schemas.finding import FindingSchema
