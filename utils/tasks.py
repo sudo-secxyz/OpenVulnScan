@@ -367,7 +367,7 @@ def run_nmap_scan(scan_id: str, target: str, ports: str = None):
                         existing_tagets = [scan.targets]
                 elif isinstance(scan.targets, list):
                     existing_tagets = scan.targets
-                all_targets = list(set(existing_tagets) | list(update_targets))
+                all_targets = list(set(existing_tagets) | set(update_targets))
 
                 scan.targets = json.dumps(all_targets)  # Store as JSON string
                 session.commit()
