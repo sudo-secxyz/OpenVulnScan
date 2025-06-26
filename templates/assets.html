@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
 <h2>Assets</h2>
+
+<form method="get" action="/assets" class="mb-4">
+  <input type="text" name="search" placeholder="Search by IP or hostname" value="{{ search or '' }}"
+         class="border rounded px-2 py-1" />
+  <button type="submit" class="bg-indigo-600 text-white px-3 py-1 rounded">Search</button>
+</form>
+
 {% for ip, data in assets.items() %}
   <div class="asset-block border p-4 mb-4 rounded shadow">
     <div class="mb-2">
