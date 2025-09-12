@@ -224,7 +224,7 @@ def scan_detail(scan_id: str, request: Request, user: BasicUser = Depends(get_cu
                 vuln["summary"] = cve.summary if cve and cve.summary else "No summary available"
                 vuln["severity"] = cve.severity if cve and cve.severity else "N/A"
                 vuln["remediation"] = cve.remediation if cve and cve.remediation else "N/A"
-
+        scan.raw_data = normalize_scan_data(scan)
         return templates.TemplateResponse("scan_result.html", {
             "request": request,
             "scan": {
@@ -394,3 +394,41 @@ async def auth_exception_handler(request: Request, exc: HTTPException):
     if exc.status_code == 401:
         return RedirectResponse(url="/login")
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+def normalize_scan_data(scan):
+    # If it's a full scan, data is already normalized
+    if scan.scan_type == "full":
+        return scan.raw_data
+
+    # If it's a discovery scan
+    if scan.scan_type == "discovery":
+        # Convert discovered hosts to findings-like dicts
+        return [
+            {
+                "ip": host.get("ip"),
+                "hostname": "",
+                "open_ports": [],
+                "vulnerabilities": [],
+                "services": [],
+                "os": "",
+                "status": host.get("status", ""),
+            }
+            for host in scan.raw_data or []
+        ]
+
+    # If it's a web scan
+    if scan.scan_type == "web":
+        # Convert web alerts to findings-like dicts
+        return [
+            {
+                "ip": finding.get("ip", ""),
+                "hostname": finding.get("hostname", ""),
+                "open_ports": [],
+                "vulnerabilities": finding.get("vulnerabilities", []),
+                "services": [],
+                "os": "",
+                "status": "",
+            }
+            for finding in scan.raw_data or []
+        ]
+    return []
