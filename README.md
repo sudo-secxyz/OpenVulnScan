@@ -72,6 +72,7 @@ admin@openvulnscan.local
 | User Guide| [https://sudo-sec.xyz/blog/openvulnscan-user-guide] |
 | Admin Guide | [https://sudo-sec.xyz/blog/openvulnscan-admin-guide] |
 |KB for OpenVulnScan| [https://sudo-sec.xyz/blog/tag/openvulnscan] |
+| Demo Video |[https://www.youtube.com/watch?v=bwozsZT3_Y0]|
 
 ---
 
