@@ -11,6 +11,15 @@
     {% endif %}
 </p>
 
+{% if scan.scan_type == "discovery" %}
+  <h3 class="text-lg font-medium mt-6 mb-2">Discovered Hosts</h3>
+  <ul class="list-disc list-inside mb-4">
+    {% for host in scan.raw_data %}
+      <li>{{ host.ip }} ({{ host.status }})</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
 <h3 class="text-lg font-medium mt-6 mb-2">Findings</h3>
 <table class="table-auto border-collapse border border-gray-300 w-full text-sm">
     <thead class="bg-gray-100">
@@ -26,29 +35,42 @@
     </thead>
     <tbody>
         {% for finding in scan.raw_data %}
-            {% for vuln in finding.vulnerabilities %}
+            {% if finding.vulnerabilities and finding.vulnerabilities|length > 0 %}
+                {% for vuln in finding.vulnerabilities %}
+                    <tr>
+                        <td class="border px-4 py-2">{{ finding.ip or 'N/A' }}</td>
+                        <td class="border px-4 py-2">{{ finding.hostname or 'N/A' }}</td>
+                        <td class="border px-4 py-2">
+                            {% if finding.open_ports %}
+                                {{ finding.open_ports | map(attribute='port') | join(', ') }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td class="border px-4 py-2">{{ vuln.id }}</td>
+                        <td class="border px-4 py-2">{{ vuln.description }}</td>
+                        <td class="border px-4 py-2">{{ vuln.severity or "N/A" }}</td>
+                        <td class="border px-4 py-2">
+                            {% if vuln.remediation and vuln.remediation.startswith('http') %}
+                                <a href="{{ vuln.remediation }}" target="_blank">Remediation Link</a>
+                            {% else %}
+                                {{ vuln.remediation or "N/A" }}
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            {% else %}
+                <!-- For discovery scan: show host and status even if no vulnerabilities -->
                 <tr>
-                    <td class="border px-4 py-2">{{ finding.ip }}</td>
-                    <td class="border px-4 py-2">{{ finding.hostname }}</td>
-                    <td class="border px-4 py-2">
-                        {% if finding.open_ports %}
-                            {{ finding.open_ports | map(attribute='port') | join(', ') }}
-                        {% else %}
-                            N/A
-                        {% endif %}
-                    </td>
-                    <td class="border px-4 py-2">{{ vuln.id }}</td>
-                    <td class="border px-4 py-2">{{ vuln.description }}</td>
-                    <td class="border px-4 py-2">{{ vuln.severity or "N/A" }}</td>
-                    <td class="border px-4 py-2">
-                        {% if vuln.remediation and vuln.remediation.startswith('http') %}
-                            <a href="{{ vuln.remediation }}" target="_blank">Remediation Link</a>
-                        {% else %}
-                            {{ vuln.remediation or "N/A" }}
-                        {% endif %}
-                    </td>
+                    <td class="border px-4 py-2">{{ finding.ip or 'N/A' }}</td>
+                    <td class="border px-4 py-2">{{ finding.hostname or 'N/A' }}</td>
+                    <td class="border px-4 py-2">N/A</td>
+                    <td class="border px-4 py-2">N/A</td>
+                    <td class="border px-4 py-2">N/A</td>
+                    <td class="border px-4 py-2">N/A</td>
+                    <td class="border px-4 py-2">{{ finding.status or 'N/A' }}</td>
                 </tr>
-            {% endfor %}
+            {% endif %}
         {% endfor %}
     </tbody>
 </table>

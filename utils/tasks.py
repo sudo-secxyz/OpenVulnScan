@@ -50,11 +50,6 @@ def normalize_url(target: str) -> str:
 
 
 def validate_target_url(zap: ZAPv2, base_url: str) -> str | None:
-    """
-    Validate the target URL by checking accessibility via HTTPS and HTTP.
-    If the URL does not start with http/https, try both schemes.
-    Returns the first working URL, or None if inaccessible.
-    """
     session = requests.Session()
     session.verify = False  # In case of self-signed certs
 
@@ -62,10 +57,8 @@ def validate_target_url(zap: ZAPv2, base_url: str) -> str | None:
     parsed = urlparse(base_url)
 
     if parsed.scheme:
-        # If scheme is given (http or https), try it as-is
         schemes.append(parsed.scheme)
     else:
-        # Try https first, then http
         schemes = ['https', 'http']
 
     hostname = parsed.hostname or base_url
@@ -75,12 +68,10 @@ def validate_target_url(zap: ZAPv2, base_url: str) -> str | None:
         try:
             resp = session.get(test_url, timeout=5)
             if resp.status_code < 400:
-                # Ask ZAP to start crawling this URL
                 zap.spider.scan(test_url)
                 return test_url
-        except Exception as e:
-            continue  # Try the next scheme
-
+        except Exception:
+            continue
     return None
 
 def run_parallel_scans(scan_id, targets):
@@ -269,7 +260,7 @@ def run_nmap_discovery(scan_id: int, target: str):
             for t in target:
                 ensure_asset_exists(t)
         result = subprocess.run(
-            ["nmap", "-sn", target, "-oX", "-"],
+            ["nmap", "-sn", "-PE", target, "-oX", "-"],
             capture_output=True, text=True
         )
         if result.returncode != 0:
@@ -403,6 +394,10 @@ def run_nmap_scan(scan_id: str, target: str, ports: str = None):
 def run_zap_scan(scan_id: int, zap_output_path: str = None, target_url: str = None):
     session = SessionLocal()
     scan = None
+    validated_url = validate_target_url(zap, target_url)
+    if not validated_url:
+        raise ValueError(f"Target {target_url} not reachable via HTTP or HTTPS")
+    normalized_target = normalize_url(validated_url)
     try:
         os.makedirs(ZAP_RESULTS_DIR, exist_ok=True)
         if not zap_output_path:

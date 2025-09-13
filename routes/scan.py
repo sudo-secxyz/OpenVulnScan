@@ -79,19 +79,28 @@ async def create_scan(
         run_nmap_discovery.delay(scan_id, target)
 
     elif scan_type == "web":
-        # Normalize the target URL
         normalized_target = normalize_url(target)
-        
-        # Generate the ZAP output path
+        # If ports is set and not default, append to URL
+        if ports and ports not in ["80", "443"]:
+            # Remove trailing slash if present
+            normalized_target = normalized_target.rstrip("/")
+            # Insert port before path
+            from urllib.parse import urlparse, urlunparse
+            parsed = urlparse(normalized_target)
+            netloc = parsed.hostname
+            if parsed.port is None:
+                netloc += f":{ports}"
+            new_url = urlunparse((
+                parsed.scheme,
+                netloc,
+                parsed.path,
+                parsed.params,
+                parsed.query,
+                parsed.fragment
+            ))
+            normalized_target = new_url
+        # Pass the normalized_target to ZAP
         zap_output_path = os.path.join(ZAP_RESULTS_DIR, f"{scan_id}.json")
-        task = ScanTask(scan_id=scan_id, name="WebScan", status="pending")
-        db.add(task)
-        db.commit()
-        # Log and validate the target URL
-
-        if not normalized_target.startswith(("http://", "https://")):
-            raise ValueError(f"Invalid target URL: {normalized_target}. Must include http:// or https://")
-        # Pass the normalized target as the target_url parameter
         run_zap_scan.delay(scan_id, zap_output_path, target_url=normalized_target)
 
     elif scan_type == "full":
