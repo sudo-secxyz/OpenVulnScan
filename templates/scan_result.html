@@ -28,6 +28,9 @@
             <th class="border px-4 py-2">Hostname</th>
             <th class="border px-4 py-2">Port</th>
             <th class="border px-4 py-2">CVE ID</th>
+            <th class="border px-4 py-2">CVE Summary</th>
+            <th class="border px-4 py-2">CVSS Score</th>
+            <th class="border px-4 py-2">Criticality</th>
             <th class="border px-4 py-2">Description</th>
             <th class="border px-4 py-2">Severity</th>
             <th class="border px-4 py-2">Remediation</th>
@@ -48,6 +51,9 @@
                             {% endif %}
                         </td>
                         <td class="border px-4 py-2">{{ vuln.id }}</td>
+                        <td class="border px-4 py-2">{{ vuln.summary or "N/A" }}</td>
+                        <td class="border px-4 py-2">{{ vuln.cvss or "N/A" }}</td>
+                        <td class="border px-4 py-2">{{ vuln.criticality or "N/A" }}</td>
                         <td class="border px-4 py-2">{{ vuln.description }}</td>
                         <td class="border px-4 py-2">{{ vuln.severity or "N/A" }}</td>
                         <td class="border px-4 py-2">
@@ -64,6 +70,9 @@
                 <tr>
                     <td class="border px-4 py-2">{{ finding.ip or 'N/A' }}</td>
                     <td class="border px-4 py-2">{{ finding.hostname or 'N/A' }}</td>
+                    <td class="border px-4 py-2">N/A</td>
+                    <td class="border px-4 py-2">N/A</td>
+                    <td class="border px-4 py-2">N/A</td>
                     <td class="border px-4 py-2">N/A</td>
                     <td class="border px-4 py-2">N/A</td>
                     <td class="border px-4 py-2">N/A</td>

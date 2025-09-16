@@ -224,6 +224,15 @@ def scan_detail(scan_id: str, request: Request, user: BasicUser = Depends(get_cu
                 vuln["summary"] = cve.summary if cve and cve.summary else "No summary available"
                 vuln["severity"] = cve.severity if cve and cve.severity else "N/A"
                 vuln["remediation"] = cve.remediation if cve and cve.remediation else "N/A"
+                cvss_score = extract_cvss_score(getattr(cve, "cvss", cve.severity if cve else None))
+                vuln["cvss"] = cvss_score if cvss_score is not None else "N/A"
+                vuln["criticality"] = (
+                    "Critical" if cvss_score and cvss_score >= 9 else
+                    "High" if cvss_score and cvss_score >= 7 else
+                    "Medium" if cvss_score and cvss_score >= 4 else
+                    "Low" if cvss_score and cvss_score > 0 else
+                    "N/A"
+                )
         scan.raw_data = normalize_scan_data(scan)
         return templates.TemplateResponse("scan_result.html", {
             "request": request,
@@ -432,3 +441,22 @@ def normalize_scan_data(scan):
             for finding in scan.raw_data or []
         ]
     return []
+
+def extract_cvss_score(cvss_str):
+    """
+    Extracts the numeric CVSS score from a vector string.
+    Examples:
+      'CVSS_V3: 9.8 CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H' -> 9.8
+      '9.8' -> 9.8
+    """
+    import re
+    if not cvss_str:
+        return None
+    # Try to find a float in the string
+    match = re.search(r'([0-9]+\.[0-9]+)', cvss_str)
+    if match:
+        return float(match.group(1))
+    try:
+        return float(cvss_str)
+    except Exception:
+        return None
