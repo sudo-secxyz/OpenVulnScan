@@ -22,55 +22,45 @@ import json
 router = APIRouter()
 serializer = cookie_signer
 # Submit agent report
-@router.post("/agent/report", status_code=201,  tags=["agent"])
-async def submit_agent_report(request: Request, payload: dict, db: Session = Depends(get_db)):
-    hostname = payload.get("hostname")
-    os_info = payload.get("os")
-    packages = payload.get("packages", [])
+@router.post("/agent/report", status_code=201)
+async def submit_agent_report(payload: dict, db: Session = Depends(get_db)):
+    try:
+        # Create agent report
+        report = AgentReport(
+            hostname=payload["hostname"],
+            os_info=payload.get("os_info", "Unknown"),
+            reported_at=datetime.utcnow()
+        )
+        db.add(report)
+        db.flush()
 
-    if not hostname or not packages:
-        return JSONResponse(status_code=400, content={"detail": "Missing hostname or packages"})
-
-    report = AgentReport(hostname=hostname, os_info=os_info, reported_at=datetime.utcnow())
-    db.add(report)
-    db.flush()  # Assign ID before using in foreign key
-
-    for pkg in packages:
-        name = pkg.get("name")
-        version = pkg.get("version")
-
-        if not name or not version:
-            continue
-
-        package = Package(name=name, version=version, report_id=report.id)
-        db.add(package)
-        db.flush()  # Assign ID before using in CVE
-
-        matched_cves = await cve_checker.check_cve_api(name, version)
-        for cve in matched_cves:
-            cve_id = cve.get("id", "UNKNOWN-CVE")
-            summary = cve.get("details", "No summary available")
-            severity_list = cve.get("severity", [])
-            severity = severity_list[0].get("score", "Unknown") if severity_list else "Unknown"
-
-            db.add(CVE(
-                cve_id=cve_id,
-                summary=summary,
-                severity=severity,
-                package_id=package.id
-            ))
-            send_syslog_message(json.dumps({   
-                "cve_id": cve_id,
-                "package_name": name,
-                "version": version,
-                "severity": severity,
-                "summary": summary
-            }),db
-                
+        # Process enriched packages
+        for pkg_data in payload["packages"]:
+            package = Package(
+                name=pkg_data["name"],
+                version=pkg_data["version"],
+                report_id=report.id
             )
+            db.add(package)
+            db.flush()
 
-    db.commit()
-    return {"detail": "Agent report submitted successfully", "report_id": report.id}
+            # Store pre-enriched CVEs
+            for cve_data in pkg_data.get("cves", []):
+                cve = CVE(
+                    cve_id=cve_data["id"],
+                    summary=cve_data["summary"],
+                    severity=cve_data["severity"],
+                    cvss=str(cve_data.get("cvss", "")),
+                    remediation=cve_data.get("remediation", ""),
+                    package_id=package.id
+                )
+                db.add(cve)
+
+        db.commit()
+        return {"detail": "Agent report submitted successfully", "report_id": report.id}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error processing report: {str(e)}")
 
 # Templates for rendering HTML responses
 templates = Jinja2Templates(directory="templates")

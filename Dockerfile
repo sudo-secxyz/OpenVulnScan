@@ -1,7 +1,11 @@
 FROM ubuntu
 
 # Install nmap and Python
+RUN pip3 uninstall -y bcrypt py-bcrypt || true
+RUN rm -rf /root/.cache/pip
 RUN apt-get update && apt-get install -y systemd nmap python3 python3-pip whatweb && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y build-essential libffi-dev python3-dev
+
 # Set working directory
 WORKDIR /app
 

@@ -285,9 +285,11 @@ def get_agent_report(agent_id: int, db: Session = Depends(get_db), user: BasicUs
         ]
     })
 
-@app.get("/agent/download", response_class=Response)
+@app.get("/agent/download")
 def download_agent(request: Request):
     base_url = str(request.base_url).rstrip("/")
+    
+    # Use raw string to avoid escaping issues
     agent_code = f'''
 import subprocess
 import json
@@ -295,94 +297,130 @@ import requests
 import socket
 import platform
 import distro
+import re
+from concurrent.futures import ThreadPoolExecutor
+from typing import Dict, List, Optional
 
 OPENVULNSCAN_API = "{base_url}/agent/report"
+OSV_API = "https://api.osv.dev/v1/query"
+
+def get_cves_for_package(package):
+    cves = []
+    try:
+        # Use regular string formatting instead of f-strings for nested dicts
+        payload = {{
+            "package": {{
+                "name": package["name"],
+                "version": package["version"]
+            }}
+        }}
+        
+        resp = requests.post(OSV_API, json=payload, timeout=10)
+        if resp.status_code == 200:
+            vulns = resp.json().get("vulns", [])
+            for vuln in vulns:
+                severity = "Unknown"
+                cvss_score = None
+                
+                if "database_specific" in vuln:
+                    cvss_vector = vuln["database_specific"].get("cvss_v3_vector", "")
+                    if cvss_vector:
+                        score_match = re.search(r"/([0-9]+\\.[0-9]+)/", cvss_vector)
+                        if score_match:
+                            cvss_score = float(score_match.group(1))
+                
+                if cvss_score:
+                    if cvss_score >= 9.0: severity = "Critical"
+                    elif cvss_score >= 7.0: severity = "High"
+                    elif cvss_score >= 4.0: severity = "Medium"
+                    else: severity = "Low"
+                
+                cves.append({{
+                    "id": vuln.get("id", "UNKNOWN"),
+                    "summary": vuln.get("summary", "No summary available"),
+                    "severity": severity,
+                    "cvss": cvss_score,
+                    "details": vuln.get("details", ""),
+                    "remediation": "Update to a non-vulnerable version"
+                }})
+    except Exception as e:
+        print("Error querying OSV API: " + str(e))
+    return cves
 
 def get_installed_packages():
     try:
         system = platform.system().lower()
         packages = []
-
+        
         if system == "linux":
             distro_name = distro.id().lower()
             if "debian" in distro_name or "ubuntu" in distro_name:
-                packages = get_debian_packages()
-            elif "kali" in distro_name:
-                packages = get_debian_packages()  # Kali is based on Debian
+                result = subprocess.run(["dpkg", "-l"], capture_output=True, text=True, check=True)
+                for line in result.stdout.split("\\n")[5:]:
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        packages.append({{"name": parts[1], "version": parts[2]}})
             elif "rhel" in distro_name or "centos" in distro_name or "fedora" in distro_name:
-                packages = get_redhat_packages()
-            else:
-                print(f"Unsupported Linux distribution: {{distro_name}}")
-                
+                result = subprocess.run(["rpm", "-qa", "--queryformat", "%{{NAME}} %{{VERSION}}\\n"], 
+                                     capture_output=True, text=True, check=True)
+                for line in result.stdout.split("\\n"):
+                    if line:
+                        parts = line.split()
+                        if len(parts) == 2:
+                            packages.append({{"name": parts[0], "version": parts[1]}})
         elif system == "darwin":
-            packages = get_macos_packages()
-        elif system == "windows":
-            packages = get_windows_packages()
-        else:
-            print(f"Unsupported operating system: {{system}}")
+            result = subprocess.run(["brew", "list", "--versions"], capture_output=True, text=True, check=True)
+            for line in result.stdout.split("\\n"):
+                if line:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        packages.append({{"name": parts[0], "version": parts[1]}})
         return packages
     except Exception as e:
-        print(f"Error detecting system packages: {{e}}")
+        print("Error getting packages: " + str(e))
         return []
 
-
-def get_debian_packages():
-    try:
-        result = subprocess.run(['dpkg', '-l'], capture_output=True, text=True, check=True)
-        packages = []
-        for line in result.stdout.split('\\n')[5:]:
-            parts = line.split()
-            if len(parts) >= 3:
-                packages.append({{"name": parts[1], "version": parts[2]}})
-        return packages
-    except Exception as e:
-        print(f"Error getting Debian/Ubuntu packages: {{e}}")
-        return []
-
-def get_redhat_packages():
-    try:
-        result = subprocess.run(['rpm', '-qa', '--queryformat', '%{{NAME}} %{{VERSION}}\\n'], capture_output=True, text=True, check=True)
-        packages = []
-        for line in result.stdout.split('\\n'):
-            parts = line.split()
-            if len(parts) == 2:
-                packages.append({{"name": parts[0], "version": parts[1]}})
-        return packages
-    except Exception as e:
-        print(f"Error getting Red Hat-based packages: {{e}}")
-        return []
-
-def get_macos_packages():
-    try:
-        result = subprocess.run(['brew', 'list', '--versions'], capture_output=True, text=True, check=True)
-        packages = []
-        for line in result.stdout.split('\\n'):
-            parts = line.split()
-            if len(parts) >= 2:
-                packages.append({{"name": parts[0], "version": parts[1]}})
-        return packages
-    except Exception as e:
-        print(f"Error getting macOS packages: {{e}}")
-        return []
-
-def get_windows_packages():
-    try:
-        result = subprocess.run(['wmic', 'product', 'get', 'name,version'], capture_output=True, text=True, check=True)
-        packages = []
-        for line in result.stdout.split('\\n')[1:]:
-            parts = line.split()
-            if len(parts) >= 2:
-                packages.append({{"name": ' '.join(parts[:-1]), "version": parts[-1]}})
-        return packages
-    except Exception as e:
-        print(f"Error getting Windows packages: {{e}}")
-        return []
+def enrich_packages_with_cves(packages):
+    enriched_packages = []
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_package = {{
+            executor.submit(get_cves_for_package, package): package 
+            for package in packages
+        }}
+        for future in future_to_package:
+            package = future_to_package[future]
+            try:
+                cves = future.result()
+                enriched_packages.append({{
+                    "name": package["name"],
+                    "version": package["version"],
+                    "cves": cves
+                }})
+            except Exception as e:
+                print("Error enriching package: " + str(e))
+                enriched_packages.append({{
+                    "name": package["name"],
+                    "version": package["version"],
+                    "cves": []
+                }})
+    return enriched_packages
 
 def send_report(packages):
-    payload = {{"hostname": socket.gethostname(), "packages": packages}}
+    enriched_packages = enrich_packages_with_cves(packages)
+    payload = {{
+        "hostname": socket.gethostname(),
+        "os_info": platform.system() + " " + platform.release(),
+        "packages": enriched_packages
+    }}
+    
     headers = {{"Content-Type": "application/json"}}
-    response = requests.post(OPENVULNSCAN_API, headers=headers, json=payload)
-    print(f"Report sent, status: {{response.status_code}}, body: {{response.text}}")
+    try:
+        response = requests.post(OPENVULNSCAN_API, headers=headers, json=payload)
+        print("Report sent, status: " + str(response.status_code))
+        if response.status_code != 200:
+            print("Error response: " + str(response.text))
+    except Exception as e:
+        print("Error sending report: " + str(e))
 
 if __name__ == "__main__":
     pkgs = get_installed_packages()
