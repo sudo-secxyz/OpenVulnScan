@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Tag Management</h2>
+
+<h4>Create New Tag</h4>
+<form method="post" action="/tags/create" class="form-inline mb-3">
+    <input type="text" name="name" placeholder="Tag name" required class="form-control mr-2">
+    <input type="text" name="description" placeholder="Description" class="form-control mr-2">
+    <button type="submit" class="btn btn-primary">Create Tag</button>
+</form>
+
+<h4>All Tags</h4>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Description</th>
+            <tn>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for tag in tags %}
+        <tr>
+            <td>{{ tag.name }}</td>
+            <td>{{ tag.description }}</td>
+            <td>
+                <form method="post" action="/tags/{{ tag.id }}/delete" style="display:inline;">
+                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this tag?');">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

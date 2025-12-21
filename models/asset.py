@@ -4,6 +4,7 @@ from sqlalchemy.orm import relationship
 from database.base import Base
 
 from datetime import datetime
+from models.tag import asset_tags  # Add this import
 
 class Vulnerability(Base):
     __tablename__ = 'vulnerabilities'
@@ -30,3 +31,4 @@ class Asset(Base):
     scans = relationship("Scan", back_populates="asset")
     
     agent_reports = relationship("AgentReport", back_populates="asset")
+    tags = relationship("Tag", secondary=asset_tags, back_populates="assets")

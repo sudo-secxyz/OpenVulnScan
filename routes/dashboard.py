@@ -12,6 +12,8 @@ from models.scheduled_scan import ScheduledScan
 from models.scan import Scan
 from models.finding import Finding
 from models.cve import CVE
+from models.package import Package
+from models.tag import Tag
 from models.asset import Asset  
 from datetime import datetime
 from sqlalchemy.orm import joinedload
@@ -34,6 +36,7 @@ def dashboard(request: Request, db: Session = Depends(get_db), user: BasicUser =
     report_count = db.execute(text("SELECT COUNT(*) FROM agent_reports")).scalar()
     package_count = db.execute(text("SELECT COUNT(*) FROM packages")).scalar()
     cve_count = db.execute(text("SELECT COUNT(*) FROM cves")).scalar()
+    tag_count = db.execute(text("SELECT COUNT(*) FROM tags")).scalar()
 
     # Example: Fetch top vulnerable packages
     top_packages_query = text("""
@@ -51,6 +54,7 @@ def dashboard(request: Request, db: Session = Depends(get_db), user: BasicUser =
         "report_count": report_count,
         "package_count": package_count,
         "cve_count": cve_count,
+        "tag_count": tag_count,
         "top_packages": top_packages,
         "current_user": user
     })
@@ -93,7 +97,7 @@ def query_dashboard(
     db: Session = Depends(get_db),
     user: BasicUser = Depends(get_current_user)
 ):
-    allowed_tables = ["agent_reports", "packages", "cves", "findings", "scans"]
+    allowed_tables = ["agent_reports", "packages", "cves", "findings", "scans", "tags", "assets", "scheduled_scans"]
     if table not in allowed_tables:
         logger.error(f"Invalid table name: {table}")
         return templates.TemplateResponse("dashboard.html", {

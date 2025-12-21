@@ -102,5 +102,54 @@
     <p>No vulnerabilities found for this asset.</p>
 {% endif %}
 
+<h3>Tags</h3>
+<div>
+    {% if asset.tags %}
+        <ul class="list-inline">
+            {% for tag in asset.tags %}
+                <li class="list-inline-item">
+                    <span class="badge badge-info">
+                        {{ tag.name }}
+                        <form method="post" action="/assets/{{ asset.ip_address }}/tags/{{ tag.id }}/delete" style="display:inline;">
+                            <button type="submit" class="btn btn-sm btn-danger" title="Remove tag" onclick="return confirm('Remove tag?');">&times;</button>
+                        </form>
+                    </span>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No tags assigned.</p>
+    {% endif %}
+</div>
+
+<form method="post" action="/assets/{{ asset.ip_address }}/tags/add">
+    <select name="tag_id" required>
+        {% for tag in all_tags %}
+            {% if tag.id not in asset.tags|map(attribute='id')|list %}
+                <option value="{{ tag.id }}">{{ tag.name }}</option>
+            {% endif %}
+        {% endfor %}
+    </select>
+    <button type="submit">Add Tag</button>
+</form>
+
+<h4>Create New Tag</h4>
+<form method="post" action="/tags/create">
+    <input type="text" name="name" placeholder="Tag name" required>
+    <input type="text" name="description" placeholder="Description">
+    <button type="submit">Create Tag</button>
+</form>
+
+<p>All tags: {{ all_tags|length }}</p>
+<form method="post" action="/assets/{{ asset.ip_address }}/tags/add">
+    <select name="tag_id" required>
+        {% for tag in all_tags %}
+            {% if tag.id not in asset.tags|map(attribute='id')|list %}
+                <option value="{{ tag.id }}">{{ tag.name }}</option>
+            {% endif %}
+        {% endfor %}
+    </select>
+    <button type="submit">Add Tag</button>
+</form>
 
 {% endblock %}

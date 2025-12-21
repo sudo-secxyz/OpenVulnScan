@@ -429,6 +429,9 @@ if __name__ == "__main__":
 '''
     return Response(content=agent_code, media_type="text/x-python")
 
+from routes.tags import router as tags_router
+app.include_router(tags_router)
+
 # Register protected routes
 app.include_router(protected_router)
 app.include_router(dashboard_router)

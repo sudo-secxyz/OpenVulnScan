@@ -2,6 +2,16 @@
 {% block content %}
 <h2>Assets</h2>
 
+<form method="get" action="/assets" class="form-inline mb-3">
+    <select name="tag_id" class="form-control">
+        <option value="">-- Filter by Tag --</option>
+        {% for tag in all_tags %}
+            <option value="{{ tag.id }}" {% if selected_tag == tag.id %}selected{% endif %}>{{ tag.name }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary ml-2">Filter</button>
+</form>
+
 <form method="get" action="/assets" class="mb-4">
   <input type="text" name="search" placeholder="Search by IP or hostname" value="{{ search or '' }}"
          class="border rounded px-2 py-1" />

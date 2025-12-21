@@ -1,5 +1,5 @@
 # routes/assets.py
-from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi import APIRouter, Request, Depends, HTTPException, Form, Query
 from fastapi.templating import Jinja2Templates
 from database.db_manager import SessionLocal, get_db
 from models.scan import Scan
@@ -9,10 +9,13 @@ from models.agent_report import AgentReport
 from models.finding import Finding
 from models.web_alert import WebAlert
 from models.asset import Asset
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from auth.dependencies import get_current_user, BasicUser
 from sqlalchemy.orm import selectinload, joinedload, Session
 from config import setup_logging
+from services.tag_service import assign_tag_to_asset, remove_tag_from_asset
+from models.tag import Tag
+
 
 logger = setup_logging()
 
@@ -24,7 +27,7 @@ templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/assets")
-def get_assets(request: Request, user: BasicUser = Depends(get_current_user)):
+def get_assets(request: Request, user: BasicUser = Depends(get_current_user), tag_id: int = Query(None)):
     db = SessionLocal()
     search = request.query_params.get("search", "").strip().lower()
 
@@ -62,12 +65,20 @@ def get_assets(request: Request, user: BasicUser = Depends(get_current_user)):
         if ip in asset_dict:
             asset_dict[ip]["scheduled"].append(sscan)
 
+    all_tags = db.query(Tag).all()
+    if tag_id:
+        assets = db.query(Asset).join(Asset.tags).filter(Tag.id == tag_id).all()
+    else:
+        assets = db.query(Asset).all()
+
     db.close()
     return templates.TemplateResponse("assets.html", {
         "request": request,
         "assets": asset_dict,
         "current_user": user,
         "search": search,
+        "all_tags": all_tags,
+        "selected_tag": tag_id
     })
 
 from schemas.finding import FindingSchema
@@ -85,6 +96,7 @@ def asset_detail(ip_address: str, request: Request, user=Depends(get_current_use
     db = SessionLocal()
     try:
         asset = db.query(Asset).filter(Asset.ip_address == ip_address).first()
+        all_tags = db.query(Tag).all()
         if not asset:
             return HTMLResponse(f"<h2>Asset {ip_address} not found</h2>", status_code=404)
 
@@ -126,6 +138,27 @@ def asset_detail(ip_address: str, request: Request, user=Depends(get_current_use
             "agent_reports": agent_reports,
             "web_alerts": web_alerts,
             "current_user": user,
+            "all_tags": all_tags
         })
     finally:
         db.close()
+
+@router.post("/assets/{ip_address}/tags/add")
+def add_tag(ip_address: str, tag_id: int = Form(...), db: Session = Depends(get_db)):
+    asset = db.query(Asset).filter(Asset.ip_address == ip_address).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    assign_tag_to_asset(db, asset.id, tag_id)
+    return RedirectResponse(url=f"/assets/{ip_address}", status_code=303)
+
+@router.post("/assets/{ip_address}/tags/{tag_id}/delete")
+def delete_tag(ip_address: str, tag_id: int, db: Session = Depends(get_db)):
+    asset = db.query(Asset).filter(Asset.ip_address == ip_address).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    remove_tag_from_asset(db, asset.id, tag_id)
+    return RedirectResponse(url=f"/assets/{ip_address}", status_code=303)
+
+
+
+
