@@ -1,7 +1,7 @@
 # services/scheduler.py
 from models.scheduled_scan import ScheduledScan
 from database import SessionLocal
-from datetime import datetime
+from datetime import datetime, timezone
 from services.scan_service import run_scan  # Import the run_scan function from scan_service.py
 from celery import Celery
 from config import setup_logging
@@ -11,7 +11,7 @@ logger = setup_logging()
 @celery.task
 def run_scheduled_scans():
     db = SessionLocal()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     scans = db.query(ScheduledScan).filter(ScheduledScan.start_datetime <= now, ScheduledScan.status == "queued").all()
     
     for scan in scans:
