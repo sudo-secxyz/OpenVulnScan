@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from database.db_manager import SessionLocal
 from models.asset import Asset
 
@@ -15,6 +15,6 @@ def update_asset(ip, os_name, services, web_tech=None):
     asset.services = services
     if web_tech:
         asset.web_tech = web_tech  # Add this field if you want
-    asset.last_scanned = datetime.utcnow()
+    asset.last_scanned = datetime.now(timezone.utc)
     db.commit()
     db.close()
