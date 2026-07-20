@@ -93,7 +93,7 @@ def create_scan_record(db: Session, scan_id: str, targets: list[str], status: st
         id=scan_id,
         targets=targets,  # Keep as list for JSON column
         status=status,
-        started_at=datetime.datetime.utcnow(),
+        started_at=datetime.datetime.now(datetime.timezone.utc),
         scheduled_for=scheduled_for
     )
     db.add(new_scan)
@@ -188,7 +188,7 @@ async def create_scan(scan_request: ScanRequest, db: Session = Depends(get_db)):
         id=scan_id,
         targets=scan_request.targets,
         findings=[],  # You can initially set this to an empty list, or populate it after scan completion
-        started_at=datetime.datetime.utcnow().isoformat(),
+        started_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
         scheduled_for=scan_request.scheduled_for,
         status=status
     )
