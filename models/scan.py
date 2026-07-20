@@ -23,10 +23,10 @@ class Scan(Base):
     targets = Column(String)  # List of target
     scan_type = Column(String, nullable=False)  # e.g., 'nmap', 'zap', 'discovery'
     raw_data = Column(JSON, nullable=True)  # Store consolidated scan results
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     completed_at = Column(DateTime, nullable=True)
     status = Column(String, default="pending")
-    started_at = Column(DateTime, default=datetime.datetime.utcnow(),nullable=True)
+    started_at = Column(DateTime, default=datetime.datetime.now(datetime.timezone.utc),nullable=True)
     scheduled_for = Column(DateTime, nullable=True)
    # Store scan results in JSON format
     
@@ -48,7 +48,7 @@ class ScanTask(Base):
     scan_id = Column(Integer, ForeignKey("scans.id"), nullable=False)
     name = Column(String, nullable=False)
     status = Column(String, default="pending")
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     completed_at = Column(DateTime, nullable=True)
 
     scan = relationship("Scan", back_populates="tasks")
