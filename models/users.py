@@ -1,7 +1,7 @@
 # models/users.py
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from database.base import Base
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import relationship
 
 class User(Base):
@@ -11,7 +11,7 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     email = Column(String, unique=True, index=True, nullable=True)
     hashed_password = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     is_admin = Column(Boolean, default=False)
     auth_provider = Column(String, default="manual")  # 'google', 'github', 'wallet', 'manual'
     wallet_address = Column(String, unique=True, nullable=True)
