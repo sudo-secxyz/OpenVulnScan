@@ -1,6 +1,6 @@
 fastapi==0.115.0
 uvicorn==0.23.2
-pydantic==2.4.0
+pydantic==2.10.3
 Jinja2==3.1.6
 fpdf==1.7.2
 requests==2.32.2
